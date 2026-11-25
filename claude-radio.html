@@ -335,7 +335,7 @@ function ytHlas() {
 setInterval(function () { if (yt.aktivni) ytHlas(); }, 200);
 el('ytCelaTl').onclick = function () { ytCela(!yt.cela); };
 el('ytStopTl').onclick = function () { ytZavri(true); };
-document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && yt.cela) ytCela(false); });
+document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (yt.cela) ytCela(false); else if (yt.aktivni) ytZavri(true); });   /* Esc: zmenšit, podruhé zavřít */
 document.addEventListener('fullscreenchange', function () { if (!document.fullscreenElement && yt.cela) { yt.cela = false; el('yt').classList.remove('cela'); } });
 
 /* ---------- pomocné: čísla, čas ---------- */
@@ -1020,7 +1020,7 @@ function maOsloveni_(x) {
   if (OSLOVENI.test(x)) return true;
   var o = ocas_(x);
   if (!o) return false;
-  return o.oslovenim ? true : citlivost === 'vysoka';
+  return o.oslovenim ? true : (citlivost === 'vysoka' || yt.aktivni);   /* při videu stačí samotné „rádio“ */
 }
 function ocisti(x) {
   var o = ocas_(x);
@@ -1081,6 +1081,19 @@ function startRec() {
         continue;
       }
 
+      /* Pavel 25. 11.: při filmu/klipu zvuk přehluší oslovení – krátké povely platí i bez „rádio“ */
+      if (yt.aktivni && r.isFinal && !aiBezi) {
+        var kratky = texty.map(function (x) { return ocisti(x).replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim(); })
+          .filter(function (x) { return x && x.split(' ').length <= 3 && /(^|\s)(stop|stopka|zastav|zastavit|vypni|vypnout|dost|konec|ukonči|ukonci|zpátky|zpět|zmenši|zmensi|celá obrazovka|cela obrazovka|celou obrazovku)(\s|$)/.test(x); })[0];
+        if (kratky) {
+          log('⏹ Povel při videu: ' + texty[0]);
+          cekaNaPrikaz = 0; ztlum(false); zavriNaslouchani('ok', kratky);
+          if (/zmen/.test(kratky)) { ytCela(false); pipni(true); }
+          else if (/cel/.test(kratky)) { ytCela(true); pipni(true); }
+          else { var vyp = /vypn/.test(kratky); ytZavri(!vyp); potvrd(vyp ? 'Vypínám.' : 'Zpátky na rádio.'); }
+          continue;
+        }
+      }
       var osl = texty.some(maOsloveni_);
       if (osl && !cekaNaPrikaz && !aiBezi) {
         cekaNaPrikaz = Date.now(); ztlum(true); pipni(true);
