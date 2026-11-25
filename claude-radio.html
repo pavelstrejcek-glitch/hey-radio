@@ -107,6 +107,7 @@
     „rádio, <b>vzbuď mě zítra ve čtvrt na sedm Blaníkem</b>“ · „rádio, <b>co to hraje?</b>“ / „<b>kdo to zpívá?</b>“ (poslechne si písničku a řekne interpreta) · „<b>co hrálo předtím?</b>“ · „rádio, <b>jaké bude zítra počasí v Brně?</b>“<br>
     „rádio, <b>kolik je 15 % z 2 400?</b>“ · „rádio, <b>jak hrála Sparta?</b>“ · „rádio, <b>jaký je kurz eura?</b>“ – a hned „<b>a co dolar?</b>“ (3 minuty si pamatuje)<br>
     💬 <b>„rádio, pojďme pokecat“</b> – rádio se zastaví a můžete si povídat bez oslovování. Konec: <b>„konec“</b> nebo <b>„díky, to je vše“</b> (sám skončí po 1,5 min ticha).<br>
+    🎬 <b>„rádio, pusť film Pelíšky“</b> – celý film z YouTube (jen když tam celý je), rovnou přes celou obrazovku<br>
     ▶ <b>„rádio, pusť Kabát Pohoda“</b> – najde a pustí klip z YouTube · „<b>celá obrazovka</b>“ / „<b>zmenši</b>“ · „<b>další</b>“ (jiná verze) · „<b>stop</b>“ (zpátky na rádio)<br>
     Hlas moderátorů a reklam z rádia se ignoruje.
   </div>
@@ -257,19 +258,21 @@ function ytApi(hotovo) {
   document.head.appendChild(sc);
 }
 function zastavStream() { audio.pause(); audio.removeAttribute('src'); audio.load(); }
-function pustYoutube(dotaz) {
+function pustYoutube(dotaz, typ) {
   dotaz = String(dotaz || '').trim(); if (!dotaz) return;
-  log('▶ YouTube hledám: ' + dotaz);
+  var film = typ === 'film';   /* Pavel 25. 11.: „pusť film …“ – jen celé filmy, rovnou přes celou obrazovku */
+  log('▶ YouTube hledám' + (film ? ' film: ' : ': ') + dotaz);
   ytApi(function () {});                                   /* přehrávač se začne načítat hned, ať je to rychlejší */
-  fetch(RADIO_AI_URL, { method: 'POST', body: JSON.stringify({ tajne: RADIO_AI_TAJNE, youtube: dotaz }) })
+  fetch(RADIO_AI_URL, { method: 'POST', body: JSON.stringify({ tajne: RADIO_AI_TAJNE, youtube: dotaz, typ: film ? 'film' : '' }) })
     .then(function (r) { return r.json(); })
     .then(function (o) {
-      if (!o || !o.ok || !(o.videa || []).length) { tonChyba(); log('YouTube: nic nenalezeno'); rekni('Na YouTube jsem ' + dotaz + ' nenašel.'); return; }
+      if (!o || !o.ok || !(o.videa || []).length) { tonChyba(); log('YouTube: nic nenalezeno'); rekni(film ? 'Celý film ' + dotaz + ' jsem na YouTube nenašel.' : 'Na YouTube jsem ' + dotaz + ' nenašel.'); return; }
       yt.videa = o.videa; yt.i = 0; yt.chyb = 0;
       if (!yt.aktivni) yt.stanicePred = aktualni || null;
       if (aktualni) { zastavStream(); posledni = aktualni; aktualni = null; vykresliTl(); }
       yt.aktivni = true;
       ytPustIndex();
+      if (film) ytCela(true);
     })
     .catch(function (e) { tonChyba(); log('YouTube: ' + e.message); rekni('YouTube teď nejde.'); });
 }
@@ -721,6 +724,7 @@ function potvrzeniAkci(akce) {
     if (/^youtube\s+stop/.test(a)) { r.push('Zpátky na rádio.'); return; }
     if (/^youtube\s+dalsi/.test(a)) { r.push('Zkusím jinou verzi.'); return; }
     if ((m = a.match(/^youtube\s+(.+)/))) { r.push('Hledám ' + m[1] + '.'); return; }
+    if ((m = a.match(/^film\s+(.+)/))) { r.push('Hledám film ' + m[1] + '.'); return; }
     if (/^obrazovka/.test(a)) return;
     if (/^(co hraje|pocasi)/.test(a)) return;                         /* ty mluví samy */
     if ((m = a.match(/^pust\s+(\S+)/))) r.push('Pouštím ' + nazevSt(STANICE.filter(function (s) { return s.id === m[1]; })[0] ? m[1] : (najdiStanici(m[1]) || m[1])) + '.');
@@ -744,6 +748,7 @@ function provedAkci(a) {
   if (/^youtube\s+stop/.test(a)) { ytZavri(true); return true; }
   if (/^youtube\s+dalsi/.test(a)) { return ytDalsi(); }
   if ((m = a.match(/^youtube\s+(.+)$/))) { pustYoutube(m[1]); return true; }
+  if ((m = a.match(/^film\s+(.+)$/))) { pustYoutube(m[1], 'film'); return true; }
   if (/^obrazovka\s+cela/.test(a)) { ytCela(true); return true; }
   if (/^obrazovka\s+mala/.test(a)) { ytCela(false); return true; }
   if ((m = a.match(/^pust\s+(\S+)/))) { var st = STANICE.filter(function (s) { return s.id === m[1]; })[0] ? m[1] : najdiStanici(m[1]); if (st) { zrusTicho(); pust(st); return true; } return false; }
