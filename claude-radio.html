@@ -71,7 +71,7 @@
   <div class="mic">🎙 Mikrofon <div class="lista"><div id="micLevel"></div></div>
     <select id="citlivost" style="padding:6px;border-radius:8px;background:#1f232c;color:#eef0f4;border:1px solid #333a47">
       <option value="normalni">Oslovení: „Hey rádio“</option>
-      <option value="vysoka">Citlivé: stačí „rádio“ / „zapni…“ / „přepni na…“</option>
+      <option value="vysoka">Citlivé: stačí „rádio“</option>
     </select></div>
   <div class="zive" id="zive"></div>
   <div class="prekryv" id="prekryv" hidden><div class="kruh" id="kruh">🎙</div><div class="velky" id="prekryvText">Poslouchám…</div><div class="slysim" id="prekryvSlysim"></div><div class="odpocet"><div id="odpocet"></div></div></div>
@@ -541,7 +541,7 @@ function ztlum(ano) {
 }
 
 /* ---------- AI (Pavel 25. 11.: AI rozumí všemu, pokec, ignoruje hlas z rádia) ---------- */
-var osloveno = false, slysenoPoOsloveni = '', opakovani = 0;   /* Pavel 25. 11.: když nerozumí, ať to řekne */
+var osloveno = false, slysenoPoOsloveni = '', opakovani = 0, wakeZUtrzku = false;   /* Pavel 25. 11.: když nerozumí, ať to řekne */
 var aiBezi = false, historie = [], pokec = false, pokecPosledni = 0, pokecStanice = null;
 var mluviDo = 0;                       /* do kdy ignorovat mikrofon (rádio samo mluví) */
 var POKEC_TICHO_MS = 90000;           /* pokec skončí po 1,5 min ticha */
@@ -832,7 +832,7 @@ function zavriNaslouchani(vysledek, text) {
 /* ---------- oslovení + filtr hlasu z rádia ---------- */
 /* Pavel 25. 11.: „rádio“ / věta začínající zapni, přepni, pusť…  – ale ne znělky stanic („Rádio Blaník“, „rádio Impuls“…). */
 var PRIKAZ_ZACATEK = /^(hlasitost|zapni|přepni|prepni|pusť|pust|vypni|zesil|zesláb|zeslab|ztiš|ztis)(?=[\s,.!?]|$)/;
-var ZNELKA = /(rádi[oau]|radi[oau])\s+(blaník|blanik|impuls|impulz|kiss|rock|čas|cas|zlín|beat|bonton|jih|černá hora|hey|krokodýl|český rozhlas|evropa|country|city|praha|petrov|bohemia|z\b|dechovka|hits)|(posloucháte|vaše rádio|na vlnách)/;
+var ZNELKA = /(rádi[oau]|radi[oau])\s+(blaník|blanik|impuls|impulz|kiss|rock|čas|cas|zlín|beat|bonton|jih|černá hora|hey|krokodýl|český rozhlas|evropa|country|city|praha|petrov|bohemia|z\b|dechovka|hits)|(posloucháte|vaše rádio|na vlnách|klidné rádio|neklidné doby|rádio pro|nejlepší rádio|rádio s|hraje rádio)/;
 /* Pavel 25. 11.: Chrome posílá řeč v delších kusech (i s tím, co mluví moderátor před vámi),
    takže oslovení se hledá KDEKOLI ve větě a bere se jen to, co následuje po něm. */
 var WAKE_G = /(^|\s)(?:(?:hey|hej|hei|haj|ahoj|hele)\s*,?\s*)?(rádi[oaue]?|radi[oaue]?|rádijo|radijo|rádiem|radiem|rádjo|radjo|rádyo)(?=[\s,.!?]|$)/g;
@@ -841,7 +841,10 @@ function ocas_(x) {
   /* vrátí {po: text po posledním oslovení, oslovenim: true/false} nebo null */
   var m, posl = null;
   WAKE_G.lastIndex = 0;
-  while ((m = WAKE_G.exec(x))) posl = { idx: m.index + m[0].length, zac: m.index + m[1].length };
+  var pocetWake = 0;
+  while ((m = WAKE_G.exec(x))) { posl = { idx: m.index + m[0].length, zac: m.index + m[1].length }; pocetWake++; }
+  /* „rádio“ dvakrát v delší větě = znělka stanice („Country Rádio – klidné rádio do neklidné doby“) */
+  if (pocetWake >= 2 && x.split(/\s+/).length > 4) return null;
   if (posl) {
     var po = x.slice(posl.idx).replace(/^[\s,.!?]+/, '').trim();
     var cely = x.slice(posl.zac);
@@ -863,16 +866,8 @@ function ocas_(x) {
     if (po.split(/\s+/).filter(Boolean).length > 14) return null;  /* dlouhé povídání po „rádio“ = moderátor */
     return { po: po, oslovenim: true };
   }
-  if (citlivost !== 'vysoka') return null;
-  /* bez „rádio“: povel (zapni, pusť…) na začátku úseku, krátký */
-  POVEL_G.lastIndex = 0; posl = null;
-  while ((m = POVEL_G.exec(x))) posl = m.index + m[1].length;
-  if (posl === null) return null;
-  var zbytek = x.slice(posl).trim();
-  var pred = x.slice(0, posl).trim().split(/\s+/).filter(Boolean).length;
-  if (pred > 1 && x.split(/\s+/).length > 10) return null;     /* povel uprostřed dlouhé věty = spíš rádio */
-  if (zbytek.split(/\s+/).length > 8) return null;
-  return { po: zbytek, oslovenim: false };
+  /* Pavel 25. 11.: povel bez slova „rádio“ (zapni, pusť…) se už jako oslovení nebere – říkají to i moderátoři a písničky */
+  return null;
 }
 /* „silné“ oslovení = krátká věta, která slovem rádio (nebo povelem) ZAČÍNÁ – tak mluví Pavel, ne moderátor */
 function silneOsloveni_(x) {
@@ -880,7 +875,7 @@ function silneOsloveni_(x) {
   var slov = x.split(' ').length;
   if (OSLOVENI.test(x) && slov <= 10) return true;
   if (slov > 8) return false;
-  return /^((hej|hey|tak|no|ahoj)\s+)?(rádi[oaue]?|radi[oaue]?)(\s|$)/.test(x) || PRIKAZ_ZACATEK.test(x) || /\s(rádi[oaue]?|radi[oaue]?)$/.test(x) && slov <= 4;
+  return /^((hej|hey|tak|no|ahoj)\s+)?(rádi[oaue]?|radi[oaue]?)(\s|$)/.test(x) || /\s(rádi[oaue]?|radi[oaue]?)$/.test(x) && slov <= 4;
 }
 function maOsloveni_(x) {
   if (OSLOVENI.test(x)) return true;
@@ -951,6 +946,7 @@ function startRec() {
       if (osl && !cekaNaPrikaz && !aiBezi) {
         cekaNaPrikaz = Date.now(); ztlum(true); pipni(true);
         osloveno = texty.some(silneOsloveni_) ? 'silne' : 'slabe'; slysenoPoOsloveni = ''; opakovani = 0;
+        wakeZUtrzku = !r.isFinal;   /* probuzeno z neúplného útržku – ověří se na celé větě */
         log('👂 oslovení (' + osloveno + '): ' + texty[0]);
         stav('Ano? Řekněte, co chcete…', 'ceka');
         ukazNaslouchani();
@@ -959,6 +955,16 @@ function startRec() {
       if (!r.isFinal) continue;
       log('Slyším: ' + texty[0]);
       if (!cekaNaPrikaz || Date.now() - cekaNaPrikaz > CEKAT_MS || aiBezi) continue;
+      /* Pavel 25. 11.: útržek „rádi“ z moderátora probudil rádio – rozhoduje až CELÁ věta */
+      if (wakeZUtrzku) {
+        wakeZUtrzku = false;
+        if (!texty.some(maOsloveni_)) {
+          log('Falešné probuzení (v celé větě není oslovení) – ignoruji');
+          cekaNaPrikaz = 0; osloveno = false; ztlum(false); zavriNaslouchani(null); stav('Poslouchám – řekněte „rádio“…', 'posloucha');
+          continue;
+        }
+        osloveno = texty.some(silneOsloveni_) ? 'silne' : 'slabe';   /* síla oslovení podle celé věty */
+      }
       var veta = ocisti(texty[0]);
       if (veta.length < 2) {                                                   /* jen „rádio“ – řekne „Ano?“ a čeká na povel */
         cekaNaPrikaz = Date.now() + 30000;
