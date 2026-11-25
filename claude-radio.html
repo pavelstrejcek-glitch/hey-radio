@@ -628,7 +628,13 @@ function provedAkci(a) {
 var recenoNedavno = [];
 function jeMojeOzvena(x) {
   var slova = bez(x).replace(/[^a-záčďéěíňóřšťúůýž0-9 ]/g, ' ').split(/\s+/).filter(function (w) { return w.length > 2; });
-  if (slova.length < 3) return false;    /* krátké povely nikdy nebrat jako ozvěnu */
+  if (slova.length < 3) {               /* krátké: ozvěna jen když jsou VŠECHNA slova z toho, co rádio řeklo před chvílí */
+    return recenoNedavno.some(function (r) {
+      if (Date.now() - r.cas > 10000) return false;
+      var jeho = r.text.split(/[^a-záčďéěíňóřšťúůýž0-9]+/);
+      return slova.every(function (w) { return jeho.indexOf(w) >= 0; }) && !/^(rádi|radi)/.test(slova[0]);
+    });
+  }
   return recenoNedavno.some(function (r) {
     if (Date.now() - r.cas > 30000) return false;
     var jeho = r.text.split(/[^a-záčďéěíňóřšťúůýž0-9]+/);
@@ -643,6 +649,7 @@ rekni = function (t, potom) {
   mluviDo = Date.now() + 2000 + t.length * 85;
   if (!window.speechSynthesis || !t) { mluviDo = 0; if (potom) potom(); return; }
   /* Chrome dlouhé věty uprostřed utne a pak „visí“ – proto po větách */
+  log('🔊 ' + t);
   recenoNedavno.push({ text: bez(t), cas: Date.now() }); recenoNedavno = recenoNedavno.filter(function (x) { return Date.now() - x.cas < 60000; });
   var kusy = t.match(/[^.!?]+[.!?]*/g) || [t];
   var v = speechSynthesis.getVoices().filter(function (x) { return /^cs/i.test(x.lang); })[0];
@@ -898,7 +905,7 @@ function startRec() {
   rec.lang = 'cs-CZ'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 5;
   rec.onstart = function () { recAktivni = true; posledniZivot = Date.now(); if (!pokec && !cekaNaPrikaz) stav('Poslouchám – řekněte „rádio“…', 'posloucha'); };
   rec.onresult = function (e) {
-    posledniZivot = Date.now();
+    posledniZivot = Date.now(); window.__chybaOd = 0;
     for (var i = e.resultIndex; i < e.results.length; i++) {
       var r = e.results[i], texty = [];
       for (var a = 0; a < r.length; a++) texty.push(bez(r[a].transcript).trim());
@@ -929,6 +936,7 @@ function startRec() {
       if (osl && !cekaNaPrikaz && !aiBezi) {
         cekaNaPrikaz = Date.now(); ztlum(true); pipni(true);
         osloveno = texty.some(silneOsloveni_) ? 'silne' : 'slabe'; slysenoPoOsloveni = ''; opakovani = 0;
+        log('👂 oslovení (' + osloveno + '): ' + texty[0]);
         stav('Ano? Řekněte, co chcete…', 'ceka');
         ukazNaslouchani();
       }
@@ -949,9 +957,15 @@ function startRec() {
     }
   };
   rec.onerror = function (e) {
-    if ((e.error === 'network' || e.error === 'audio-capture') && Date.now() - (window.__chybaRekl || 0) > 120000) {
-      window.__chybaRekl = Date.now(); tonChyba();
-      rekni(e.error === 'network' ? 'Pozor, nemám spojení s internetem, nerozumím vám.' : 'Pozor, nefunguje mikrofon.');
+    if (e.error === 'network' || e.error === 'audio-capture') {
+      log('Rozpoznávání: ' + e.error + ' (zkouším znovu)');
+      if (!window.__chybaOd) window.__chybaOd = Date.now();
+      /* varovat jen když výpadek trvá – krátké zakolísání přejde samo */
+      if (Date.now() - window.__chybaOd > 15000 && Date.now() - (window.__chybaRekl || 0) > 120000) {
+        window.__chybaRekl = Date.now(); tonChyba();
+        rekni(e.error === 'network' ? 'Pozor, nemám spojení s internetem, nerozumím vám.' : 'Pozor, nefunguje mikrofon.');
+      }
+      return;
     }
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { bezi = false; tonChyba(); rekni('Nemám povolený mikrofon.'); stav('Mikrofon není povolený. Povolte ho v Chrome (ikona vlevo v adresním řádku) a klikněte znovu na Spustit.', 'chyba'); el('start').hidden = false; }
     else if (e.error !== 'no-speech' && e.error !== 'aborted') log('Rozpoznávání: ' + e.error);
