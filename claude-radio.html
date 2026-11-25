@@ -109,6 +109,7 @@
     💬 <b>„rádio, pojďme pokecat“</b> – rádio se zastaví a můžete si povídat bez oslovování. Konec: <b>„konec“</b> nebo <b>„díky, to je vše“</b> (sám skončí po 1,5 min ticha).<br>
     🎬 <b>„rádio, pusť film Pelíšky“</b> – celý film z YouTube (jen když tam celý je), rovnou přes celou obrazovku<br>
     ▶ <b>„rádio, pusť Kabát Pohoda“</b> – najde a pustí klip z YouTube · „<b>celá obrazovka</b>“ / „<b>zmenši</b>“ · „<b>další</b>“ (jiná verze) · „<b>stop</b>“ (zpátky na rádio)<br>
+    ⏯ při videu stačí i bez „rádio“: „<b>pauza</b>“ / „<b>zastav</b>“, „<b>pokračuj</b>“, „<b>dopředu</b>“ / „<b>dozadu</b>“ (30 s), „<b>dopředu o 5 minut</b>“, „<b>skoč na 40. minutu</b>“, „<b>kolik zbývá</b>“, „<b>stop</b>“<br>
     Hlas moderátorů a reklam z rádia se ignoruje.
   </div>
   <div class="log" id="log"></div>
@@ -305,6 +306,50 @@ function ytPustIndex() {
       }
     });
   });
+}
+/* Pavel 25. 11.: pauza a přetáčení („pauza“, „pokračuj“, „dopředu o 5 minut“, „dozadu“, „skoč na 40. minutu“) */
+function ytCasText(s) { s = Math.max(0, Math.round(s)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? h + (h === 1 ? ' hodina ' : h < 5 ? ' hodiny ' : ' hodin ') + m + ' minut' : (m ? m + ' minut ' + (s % 60) + ' vteřin' : (s % 60) + ' vteřin'); }
+function ytPauza() { if (!yt.aktivni || !yt.player || !yt.player.pauseVideo) return false; try { yt.player.pauseVideo(); } catch (x) {} yt.pauza = true; el('hraje').textContent = '⏸ YouTube: ' + yt.nazev; log('⏸ Pauza'); return true; }
+function ytPokracuj() { if (!yt.aktivni || !yt.player || !yt.player.playVideo) return false; try { yt.player.playVideo(); } catch (x) {} yt.pauza = false; el('hraje').textContent = '▶ YouTube: ' + yt.nazev; log('▶ Pokračuji'); return true; }
+function ytPosun(o) {
+  if (!yt.aktivni || !yt.player || !yt.player.seekTo) return false;
+  var ted = yt.player.getCurrentTime ? yt.player.getCurrentTime() : 0, delka = yt.player.getDuration ? yt.player.getDuration() : 0;
+  var cil = Math.max(0, ted + o); if (delka) cil = Math.min(cil, delka - 2);
+  yt.player.seekTo(cil, true); log('⏩ ' + (o >= 0 ? '+' : '') + Math.round(o) + ' s → ' + ytCasText(cil)); return true;
+}
+function ytSkok(cil) { if (!yt.aktivni || !yt.player || !yt.player.seekTo) return false; yt.player.seekTo(Math.max(0, cil), true); log('⏩ na ' + ytCasText(cil)); return true; }
+/* „o 5 minut“, „o půl minuty“, „o 30 vteřin“, „o hodinu“ → sekundy; bez čísla null */
+function ytSekundyZ(t) {
+  if (/půl minut|pul minut/.test(t)) return 30;
+  if (/půl hodin|pul hodin/.test(t)) return 1800;
+  var m = t.match(/(\d+|[a-zěščřžýáíéůú]+)\s*(minut|minuty|minutu|min|sekund|sekundy|sekundu|vteřin|vteřiny|vteřinu|hodin|hodiny|hodinu)/);
+  if (m) { var c = cislo(m[1]); if (c == null && /^(minutu|hodinu|sekundu|vteřinu)$/.test(m[2])) c = 1; if (c != null) return c * (/hodin/.test(m[2]) ? 3600 : /min/.test(m[2]) ? 60 : 1); }
+  if (/\bminutu\b/.test(t)) return 60;
+  if (/\bhodinu\b/.test(t)) return 3600;
+  return null;
+}
+/* krátký povel při videu → provede a vrátí text potvrzení (nebo '' když jen pípne), null když to povel nebyl */
+function ytPovel(t, bezOsloveni) {
+  if (!yt.aktivni) return null;
+  t = bez(t).replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim();
+  /* bez oslovení jen slova, která ve filmu skoro nikdo neřekne (ne „počkej“, „dál“, „hraj“, „vrať“…) */
+  if (bezOsloveni && /^(počkej|pockej|stůj|stuj|dál|dal|hraj|hraj dál|pusť|pust|pusť to|pust to|dost|konec|jdi|vrať|vrat|play|další|dalsi|jinou|zavři to|zavri to)( |$)/.test(t)) return null;
+  var s;
+  if (/(^| )(skoč|skoc|přeskoč|preskoc|přetoč|pretoc|dej to|jdi)( na| do)? (\d+|[a-zěščřžýáíéůú]+)\.? ?(minut|minutu|minuty|min)\b/.test(t) && / (na|do) /.test(t)) {
+    var m = t.match(/(\d+|[a-zěščřžýáíéůú]+)\.? ?(minut|minutu|minuty|min)\b/); var c = m && cislo(m[1]);
+    if (c != null) { ytSkok(c * 60); return 'Skáču na ' + c + '. minutu.'; }
+  }
+  if (/(dopředu|dopredu|přetoč|pretoc|přeskoč|preskoc|posuň|posun)/.test(t) && !/(dozadu|zpátky o|zpatky o|zpět o|zpet o)/.test(t)) { s = ytSekundyZ(t) || 30; ytPosun(s); return ''; }
+  if (/(dozadu|zpátky o|zpatky o|zpět o|zpet o|vrať|vrat)/.test(t)) { s = ytSekundyZ(t) || 30; ytPosun(-s); return ''; }
+  if (/^(pauza|pauzu|dej pauzu|pozastav|pozastav to|zastav|zastav to|počkej|pockej|stůj|stuj)$/.test(t)) { ytPauza(); return ''; }
+  if (/^(pokračuj|pokracuj|pokračovat|pokracovat|pusť|pust|pusť to|pust to|hraj|hraj dál|dál|dal|play)$/.test(t)) { ytPokracuj(); return ''; }
+  if (/^(stop|dost|konec|zpátky na rádio|zpět na rádio|zpatky na radio|zpet na radio|zavři to|zavri to)$/.test(t)) { ytZavri(true); return 'Zpátky na rádio.'; }
+  if (/^(vypni|vypni to|vypnout)$/.test(t)) { ytZavri(false); return 'Vypínám.'; }
+  if (/^(celá obrazovka|cela obrazovka|na celou obrazovku|přes celou obrazovku|celou obrazovku|zvětši|zvětši to|zvetsi|zvetsi to)$/.test(t)) { ytCela(true); return ''; }
+  if (/^(zmenši|zmenši to|zmensi|zmensi to|malá obrazovka|mala obrazovka|malou obrazovku)$/.test(t)) { ytCela(false); return ''; }
+  if (/^(další|dalsi|jinou|jinou verzi|jiná verze|jina verze)$/.test(t)) { ytDalsi(); return 'Zkusím jinou.'; }
+  if (/^(kolik je|kde jsme|jak daleko|kolik zbývá|kolik zbyva)/.test(t) && yt.player && yt.player.getCurrentTime) { var d = yt.player.getDuration(), n = yt.player.getCurrentTime(); return /zbýv|zbyv/.test(t) ? 'Zbývá ' + ytCasText(d - n) + '.' : 'Jsme na ' + ytCasText(n) + ' z ' + ytCasText(d) + '.'; }
+  return null;
 }
 function ytDalsi() { if (!yt.aktivni) return false; yt.i = (yt.i + 1) % yt.videa.length; ytPustIndex(); return true; }
 function ytZavri(zpetNaRadio) {
@@ -691,13 +736,8 @@ function potvrd(t) { pipni(true); setTimeout(function () { rekni(t); }, 150); }
 /* Jednoznačné krátké povely se provedou hned bez AI (rychlost). Vše ostatní jde do AI. */
 function rychlyPrikaz(t) {
   t = t.replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (yt.aktivni) {
-    if (/^(celá obrazovka|cela obrazovka|na celou obrazovku|přes celou obrazovku|celou obrazovku|zvětši|zvětši to|zvetsi|zvetsi to|zvětšit)$/.test(t)) { ytCela(true); pipni(true); return true; }
-    if (/^(zmenši|zmenši to|zmensi|zmensi to|zmenšit|malá obrazovka|mala obrazovka|malou obrazovku)$/.test(t)) { ytCela(false); pipni(true); return true; }
-    if (/^(stop|zastav|zastav to|dost|zpátky na rádio|zpět na rádio|zpatky na radio|zpet na radio)$/.test(t)) { ytZavri(true); potvrd('Zpátky na rádio.'); return true; }
-    if (/^(vypni|vypni to)$/.test(t)) { ytZavri(false); potvrd('Vypínám.'); return true; }
-    if (/^(další|dalsi|jinou|jinou verzi|jiná verze|jina verze)$/.test(t)) { ytDalsi(); potvrd('Zkusím jinou.'); return true; }
-  }
+  var yp = ytPovel(t);
+  if (yp != null) { if (yp) potvrd(yp); else pipni(true); return true; }
   var m = t.match(/^(?:dej |nastav )?hlasitost (?:na )?(\S+)$/);
   if (m && cislo(m[1]) != null && cislo(m[1]) <= 10) { zrusTicho(); nastavHlasitost(cislo(m[1]) / 10); potvrd('Hlasitost ' + SLOVY[cislo(m[1])] + '.'); return true; }
   if (/^(vypni|vypni to|vypni rádio|vypni radio|stop|zastav)$/.test(t)) { vypni(); zrusUsinani(true); potvrd('Vypínám.'); return true; }
@@ -722,6 +762,7 @@ function potvrzeniAkci(akce) {
     var m;
     a = bez(a);
     if (/^youtube\s+stop/.test(a)) { r.push('Zpátky na rádio.'); return; }
+    if (/^youtube\s+(pauza|pokracuj|posun|cas)/.test(a)) return;
     if (/^youtube\s+dalsi/.test(a)) { r.push('Zkusím jinou verzi.'); return; }
     if ((m = a.match(/^youtube\s+(.+)/))) { r.push('Hledám ' + m[1] + '.'); return; }
     if ((m = a.match(/^film\s+(.+)/))) { r.push('Hledám film ' + m[1] + '.'); return; }
@@ -746,6 +787,10 @@ function provedAkci(a) {
   a = bez(a).replace(/[„“"]/g, '').trim();
   var m, x;
   if (/^youtube\s+stop/.test(a)) { ytZavri(true); return true; }
+  if (/^youtube\s+pauza/.test(a)) { return ytPauza(); }
+  if (/^youtube\s+pokracuj/.test(a)) { return ytPokracuj(); }
+  if ((m = a.match(/^youtube\s+posun\s+([+-]?\d+)/))) { return ytPosun(Number(m[1])); }
+  if ((m = a.match(/^youtube\s+cas\s+(\d+)/))) { return ytSkok(Number(m[1])); }
   if (/^youtube\s+dalsi/.test(a)) { return ytDalsi(); }
   if ((m = a.match(/^youtube\s+(.+)$/))) { pustYoutube(m[1]); return true; }
   if ((m = a.match(/^film\s+(.+)$/))) { pustYoutube(m[1], 'film'); return true; }
@@ -1083,14 +1128,15 @@ function startRec() {
 
       /* Pavel 25. 11.: při filmu/klipu zvuk přehluší oslovení – krátké povely platí i bez „rádio“ */
       if (yt.aktivni && r.isFinal && !aiBezi) {
-        var kratky = texty.map(function (x) { return ocisti(x).replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim(); })
-          .filter(function (x) { return x && x.split(' ').length <= 3 && /(^|\s)(stop|stopka|zastav|zastavit|vypni|vypnout|dost|konec|ukonči|ukonci|zpátky|zpět|zmenši|zmensi|celá obrazovka|cela obrazovka|celou obrazovku)(\s|$)/.test(x); })[0];
-        if (kratky) {
-          log('⏹ Povel při videu: ' + texty[0]);
-          cekaNaPrikaz = 0; ztlum(false); zavriNaslouchani('ok', kratky);
-          if (/zmen/.test(kratky)) { ytCela(false); pipni(true); }
-          else if (/cel/.test(kratky)) { ytCela(true); pipni(true); }
-          else { var vyp = /vypn/.test(kratky); ytZavri(!vyp); potvrd(vyp ? 'Vypínám.' : 'Zpátky na rádio.'); }
+        var kratkyVysl = null, kratkyText = '';
+        for (var q = 0; q < texty.length && kratkyVysl == null; q++) {
+          var kt = ocisti(texty[q]).replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim();
+          if (kt && kt.split(' ').length <= 6) { kratkyVysl = ytPovel(kt, true); kratkyText = kt; }
+        }
+        if (kratkyVysl != null) {
+          log('🎬 Povel při videu: ' + kratkyText);
+          cekaNaPrikaz = 0; ztlum(false); zavriNaslouchani('ok', kratkyText);
+          if (kratkyVysl) potvrd(kratkyVysl); else pipni(true);
           continue;
         }
       }
