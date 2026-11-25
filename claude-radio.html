@@ -55,6 +55,16 @@
   .mic .lista { flex:1; height:10px; background:#2a2f3a; border-radius:5px; overflow:hidden; }
   .mic .lista div { height:100%; width:0; background:linear-gradient(90deg, var(--ok), var(--akc), var(--err)); transition:width .08s; }
   .zive { color:var(--sed); font-size:15px; margin:-8px 0 16px; min-height:20px; font-style:italic; }
+  .yt { background:#000; border-radius:14px; overflow:hidden; margin-bottom:18px; }
+  .yt[hidden] { display:none; }
+  .yt .ytObal { position:relative; width:100%; aspect-ratio:16/9; }
+  .yt .ytObal iframe, .yt .ytObal > div { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  .yt .ytNazev { display:flex; align-items:center; gap:10px; padding:10px 14px; font-size:15px; background:var(--karta); }
+  .yt .ytNazev span { flex:1; }
+  .yt .ytNazev button { padding:8px 12px; font-size:14px; border-radius:8px; border:1px solid #333a47; background:#14161c; color:var(--txt); cursor:pointer; }
+  .yt.cela { position:fixed; inset:0; z-index:40; border-radius:0; margin:0; }
+  .yt.cela .ytObal { aspect-ratio:auto; height:100vh; }
+  .yt.cela .ytNazev { display:none; }
   .log { margin-top:16px; color:var(--sed); font-size:13px; max-height:140px; overflow:auto; }
   .log div { padding:2px 0; }
 </style>
@@ -77,6 +87,7 @@
   <div class="prekryv" id="prekryv" hidden><div class="kruh" id="kruh">🎙</div><div class="velky" id="prekryvText">Poslouchám…</div><div class="slysim" id="prekryvSlysim"></div><div class="odpocet"><div id="odpocet"></div></div></div>
 
   <div class="hraje"><div class="nadpis">Hraje</div><div class="stanice" id="hraje">nic</div></div>
+  <div class="yt" id="yt" hidden><div class="ytObal"><div id="ytPlayer"></div></div><div class="ytNazev"><span id="ytNazev"></span><button id="ytCelaTl">⛶ Celá obrazovka</button><button id="ytStopTl">⏹ Zpět na rádio</button></div></div>
 
   <div class="stanice-tl" id="staniceTl"></div>
 
@@ -96,6 +107,7 @@
     „rádio, <b>vzbuď mě zítra ve čtvrt na sedm Blaníkem</b>“ · „rádio, <b>co to hraje?</b>“ / „<b>kdo to zpívá?</b>“ (poslechne si písničku a řekne interpreta) · „<b>co hrálo předtím?</b>“ · „rádio, <b>jaké bude zítra počasí v Brně?</b>“<br>
     „rádio, <b>kolik je 15 % z 2 400?</b>“ · „rádio, <b>jak hrála Sparta?</b>“ · „rádio, <b>jaký je kurz eura?</b>“ – a hned „<b>a co dolar?</b>“ (3 minuty si pamatuje)<br>
     💬 <b>„rádio, pojďme pokecat“</b> – rádio se zastaví a můžete si povídat bez oslovování. Konec: <b>„konec“</b> nebo <b>„díky, to je vše“</b> (sám skončí po 1,5 min ticha).<br>
+    ▶ <b>„rádio, pusť Kabát Pohoda“</b> – najde a pustí klip z YouTube · „<b>celá obrazovka</b>“ / „<b>zmenši</b>“ · „<b>další</b>“ (jiná verze) · „<b>stop</b>“ (zpátky na rádio)<br>
     Hlas moderátorů a reklam z rádia se ignoruje.
   </div>
   <div class="log" id="log"></div>
@@ -206,6 +218,7 @@ function nastavHlasitost(v) {
 function pust(id) {
   var s = STANICE.filter(function (x) { return x.id === id; })[0];
   if (!s) return;
+  if (yt.aktivni) { yt.stanicePred = null; ytZavri(false); }
   aktualni = id; posledni = id; pokusUrl = 0;
   hrajUrl(s);
   vykresliTl();
@@ -224,11 +237,103 @@ audio.addEventListener('error', function () {
   else { log(s.nazev + ': stream teď nejde.'); stav(s.nazev + ' teď nejde přehrát.', 'chyba'); }
 });
 function vypni(tise) {
+  if (yt.aktivni) { yt.stanicePred = null; ytZavri(false); }
   audio.pause(); audio.removeAttribute('src'); audio.load();
   if (aktualni) posledni = aktualni;
   aktualni = null; vykresliTl();
   if (!tise) log('Vypnuto');
 }
+
+/* ---------- YouTube (Pavel 25. 11.: „rádio, pusť Kabát Pohoda“ – klip, na povel celá obrazovka) ----------
+   Hledá AI proxy (Apps Script, akce youtube), přehrává oficiální přehrávač YouTube. */
+var yt = { player: null, nacteno: false, cekaNaApi: [], videa: [], i: 0, nazev: '', aktivni: false, stanicePred: null, chyb: 0, cela: false, posledniHlas: -1 };
+function ytApi(hotovo) {
+  if (window.YT && YT.Player) { hotovo(); return; }
+  yt.cekaNaApi.push(hotovo);
+  if (yt.nacteno) return; yt.nacteno = true;
+  window.onYouTubeIframeAPIReady = function () { var f = yt.cekaNaApi; yt.cekaNaApi = []; f.forEach(function (x) { x(); }); };
+  var sc = document.createElement('script'); sc.src = 'https://www.youtube.com/iframe_api';
+  sc.onerror = function () { yt.nacteno = false; log('YouTube se nepodařilo načíst'); tonChyba(); rekni('YouTube se teď nepodařilo načíst.'); };
+  document.head.appendChild(sc);
+}
+function zastavStream() { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+function pustYoutube(dotaz) {
+  dotaz = String(dotaz || '').trim(); if (!dotaz) return;
+  log('▶ YouTube hledám: ' + dotaz);
+  ytApi(function () {});                                   /* přehrávač se začne načítat hned, ať je to rychlejší */
+  fetch(RADIO_AI_URL, { method: 'POST', body: JSON.stringify({ tajne: RADIO_AI_TAJNE, youtube: dotaz }) })
+    .then(function (r) { return r.json(); })
+    .then(function (o) {
+      if (!o || !o.ok || !(o.videa || []).length) { tonChyba(); log('YouTube: nic nenalezeno'); rekni('Na YouTube jsem ' + dotaz + ' nenašel.'); return; }
+      yt.videa = o.videa; yt.i = 0; yt.chyb = 0;
+      if (!yt.aktivni) yt.stanicePred = aktualni || null;
+      if (aktualni) { zastavStream(); posledni = aktualni; aktualni = null; vykresliTl(); }
+      yt.aktivni = true;
+      ytPustIndex();
+    })
+    .catch(function (e) { tonChyba(); log('YouTube: ' + e.message); rekni('YouTube teď nejde.'); });
+}
+function ytPustIndex() {
+  var v = yt.videa[yt.i]; if (!v) { ytZavri(true); return; }
+  yt.nazev = v.nazev || 'klip';
+  el('yt').hidden = false; el('ytNazev').textContent = '▶ ' + yt.nazev + (v.delka ? '  (' + v.delka + ')' : '');
+  el('hraje').textContent = '▶ YouTube: ' + yt.nazev;
+  document.title = '▶ ' + yt.nazev + ' – Hey rádio';
+  log('▶ YouTube: ' + yt.nazev);
+  ytApi(function () {
+    if (!yt.aktivni) return;
+    yt.posledniHlas = -1;
+    if (yt.player && yt.player.loadVideoById) { yt.player.loadVideoById(v.id); ytHlas(); return; }
+    yt.player = new YT.Player('ytPlayer', {
+      videoId: v.id,
+      playerVars: { autoplay: 1, rel: 0, playsinline: 1, hl: 'cs' },
+      events: {
+        onReady: function (e) { ytHlas(); try { e.target.playVideo(); } catch (x) {} },
+        onStateChange: function (e) {
+          if (e.data === YT.PlayerState.PLAYING) yt.chyb = 0;
+          if (e.data === YT.PlayerState.ENDED && yt.aktivni) { log('YouTube dohrál'); ytZavri(true); }
+        },
+        onError: function (e) {
+          log('YouTube: tohle video nejde pustit (' + e.data + '), zkouším další');
+          yt.chyb++;
+          if (yt.aktivni && yt.chyb <= 4 && yt.i + 1 < yt.videa.length) { yt.i++; ytPustIndex(); }
+          else { tonChyba(); rekni('Tuhle písničku se nepodařilo pustit.'); ytZavri(true); }
+        }
+      }
+    });
+  });
+}
+function ytDalsi() { if (!yt.aktivni) return false; yt.i = (yt.i + 1) % yt.videa.length; ytPustIndex(); return true; }
+function ytZavri(zpetNaRadio) {
+  if (!yt.aktivni && el('yt').hidden) return;
+  yt.aktivni = false;
+  try { if (yt.player && yt.player.stopVideo) yt.player.stopVideo(); } catch (x) {}
+  ytCela(false);
+  el('yt').hidden = true; document.title = '📻 Hey rádio';
+  var st = yt.stanicePred; yt.stanicePred = null;
+  vykresliTl();
+  if (zpetNaRadio && st) pust(st);
+}
+/* „celá obrazovka“: klip přes celé okno; skutečný režim celé obrazovky Chrome dovolí jen po kliknutí, proto se o něj jen pokusí */
+function ytCela(ano) {
+  yt.cela = !!ano && yt.aktivni; el('yt').classList.toggle('cela', yt.cela);
+  try {
+    if (yt.cela && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {});
+    if (!yt.cela && document.fullscreenElement) document.exitFullscreen().catch(function () {});
+  } catch (x) {}
+}
+/* hlasitost klipu = hlasitost rádia; když rádio poslouchá nebo mluví, klip skoro ztiší */
+function ytHlas() {
+  if (!yt.player || !yt.player.setVolume) return;
+  var v = Math.round(hlasitost * 100);
+  if (ztlumeno || mluvi || ticho || pokec || Date.now() < mluviDo - 500) v = Math.min(v, 5);
+  try { if (yt.posledniHlas !== v) { yt.player.setVolume(v); yt.posledniHlas = v; } } catch (x) {}
+}
+setInterval(function () { if (yt.aktivni) ytHlas(); }, 200);
+el('ytCelaTl').onclick = function () { ytCela(!yt.cela); };
+el('ytStopTl').onclick = function () { ytZavri(true); };
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && yt.cela) ytCela(false); });
+document.addEventListener('fullscreenchange', function () { if (!document.fullscreenElement && yt.cela) { yt.cela = false; el('yt').classList.remove('cela'); } });
 
 /* ---------- pomocné: čísla, čas ---------- */
 var CISLA = { 'nula':0,'nulu':0,'jednu':1,'jedna':1,'jeden':1,'dvě':2,'dva':2,'tři':3,'čtyři':4,'pět':5,'šest':6,'sedm':7,'osm':8,'devět':9,'deset':10,
@@ -363,6 +468,7 @@ function icyNazev(url) {
   }).catch(function () { return null; });
 }
 function coHraje() {
+  if (yt.aktivni) { zavriNaslouchani('ok', yt.nazev); rekni('Hraje ' + yt.nazev + ', z YouTube.'); return; }
   var s = STANICE.filter(function (x) { return x.id === aktualni; })[0];
   if (!s) { rekni('Teď nic nehraje.'); return; }
   if (s.cro) {
@@ -446,7 +552,8 @@ function wavZ(kusy, n, sr) {
 function mala(t) { t = String(t || ''); return t === t.toUpperCase() ? t.toLowerCase().replace(/(^|\s)\S/g, function (x) { return x.toUpperCase(); }) : t; }
 
 /* ---------- počasí (Open-Meteo, zdarma bez klíče) ---------- */
-var mesto = nacist('mesto', 'Praha');
+var MESTO_VYCHOZI = 'Liberec';   /* Pavel 25. 11.: počasí vždy výchozí Liberec (jiné město jen když ho řekne, nebo do obnovení stránky) */
+var mesto = MESTO_VYCHOZI; ulozit('mesto', null);
 var KODY = { 0:'jasno',1:'skoro jasno',2:'polojasno',3:'zataženo',45:'mlha',48:'mlha s námrazou',51:'mrholení',53:'mrholení',55:'silné mrholení',56:'mrznoucí mrholení',57:'mrznoucí mrholení',
   61:'slabý déšť',63:'déšť',65:'silný déšť',66:'mrznoucí déšť',67:'mrznoucí déšť',71:'slabé sněžení',73:'sněžení',75:'silné sněžení',77:'sněhová zrna',80:'přeháňky',81:'přeháňky',82:'silné přeháňky',
   85:'sněhové přeháňky',86:'silné sněhové přeháňky',95:'bouřky',96:'bouřky s kroupami',99:'bouřky s kroupami' };
@@ -523,7 +630,7 @@ function proved(t) {
   if (/(kolik je hodin|kolik je|kolik máme hodin|čas)/.test(t) && !/(stupň|počasí|pocasi)/.test(t)) { var n = new Date(); rekni('Je ' + n.getHours() + ' hodin ' + n.getMinutes() + ' minut.'); return true; }
   if (/(datum|kolikátého|kolikateho|jaký je dnes den|jaký je den|co je dnes|kolikátýho)/.test(t)) { var d = new Date(); rekni('Dnes je ' + DNY[d.getDay()] + ' ' + d.getDate() + '. ' + MESICE[d.getMonth()] + '.'); return true; }
   if (/(počasí|pocasi|teplota|bude pršet|bude prset|venku)/.test(t)) { pocasi(t); return true; }
-  if (/(nastav|změň|zmen)\s+(město|mesto)\s+(.+)$/.test(t)) { x = t.match(/(město|mesto)\s+(.+)$/)[2]; najdiMesto(x).then(function (g) { if (g) { mesto = g.name; ulozit('mesto', mesto); el('mesto').value = mesto; rekni('Počasí budu hlásit pro ' + mesto + '.'); } else rekni('Město ' + x + ' jsem nenašel.'); }); return true; }
+  if (/(nastav|změň|zmen)\s+(město|mesto)\s+(.+)$/.test(t)) { x = t.match(/(město|mesto)\s+(.+)$/)[2]; najdiMesto(x).then(function (g) { if (g) { mesto = g.name; el('mesto').value = mesto; rekni('Počasí budu hlásit pro ' + mesto + '.'); } else rekni('Město ' + x + ' jsem nenašel.'); }); return true; }
   if (/(co (to )?hraje|co hraje|kdo (to )?zpívá|kdo zpiva|co je to za písn|jaká je to písn|jak se to jmenuje)/.test(t)) { coHraje(); return true; }
 
   /* stanice a hlasitost */
@@ -572,6 +679,13 @@ function potvrd(t) { pipni(true); setTimeout(function () { rekni(t); }, 150); }
 /* Jednoznačné krátké povely se provedou hned bez AI (rychlost). Vše ostatní jde do AI. */
 function rychlyPrikaz(t) {
   t = t.replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (yt.aktivni) {
+    if (/^(celá obrazovka|cela obrazovka|na celou obrazovku|přes celou obrazovku|celou obrazovku|zvětši|zvětši to|zvetsi|zvetsi to|zvětšit)$/.test(t)) { ytCela(true); pipni(true); return true; }
+    if (/^(zmenši|zmenši to|zmensi|zmensi to|zmenšit|malá obrazovka|mala obrazovka|malou obrazovku)$/.test(t)) { ytCela(false); pipni(true); return true; }
+    if (/^(stop|zastav|zastav to|dost|zpátky na rádio|zpět na rádio|zpatky na radio|zpet na radio)$/.test(t)) { ytZavri(true); potvrd('Zpátky na rádio.'); return true; }
+    if (/^(vypni|vypni to)$/.test(t)) { ytZavri(false); potvrd('Vypínám.'); return true; }
+    if (/^(další|dalsi|jinou|jinou verzi|jiná verze|jina verze)$/.test(t)) { ytDalsi(); potvrd('Zkusím jinou.'); return true; }
+  }
   var m = t.match(/^(?:dej |nastav )?hlasitost (?:na )?(\S+)$/);
   if (m && cislo(m[1]) != null && cislo(m[1]) <= 10) { zrusTicho(); nastavHlasitost(cislo(m[1]) / 10); potvrd('Hlasitost ' + SLOVY[cislo(m[1])] + '.'); return true; }
   if (/^(vypni|vypni to|vypni rádio|vypni radio|stop|zastav)$/.test(t)) { vypni(); zrusUsinani(true); potvrd('Vypínám.'); return true; }
@@ -595,6 +709,10 @@ function potvrzeniAkci(akce) {
   akce.forEach(function (a) {
     var m;
     a = bez(a);
+    if (/^youtube\s+stop/.test(a)) { r.push('Zpátky na rádio.'); return; }
+    if (/^youtube\s+dalsi/.test(a)) { r.push('Zkusím jinou verzi.'); return; }
+    if ((m = a.match(/^youtube\s+(.+)/))) { r.push('Hledám ' + m[1] + '.'); return; }
+    if (/^obrazovka/.test(a)) return;
     if (/^(co hraje|pocasi)/.test(a)) return;                         /* ty mluví samy */
     if ((m = a.match(/^pust\s+(\S+)/))) r.push('Pouštím ' + nazevSt(STANICE.filter(function (s) { return s.id === m[1]; })[0] ? m[1] : (najdiStanici(m[1]) || m[1])) + '.');
     else if (/^zapni/.test(a)) r.push('Pouštím ' + nazevSt(aktualni || posledni) + '.');
@@ -614,6 +732,11 @@ function potvrzeniAkci(akce) {
 function provedAkci(a) {
   a = bez(a).replace(/[„“"]/g, '').trim();
   var m, x;
+  if (/^youtube\s+stop/.test(a)) { ytZavri(true); return true; }
+  if (/^youtube\s+dalsi/.test(a)) { return ytDalsi(); }
+  if ((m = a.match(/^youtube\s+(.+)$/))) { pustYoutube(m[1]); return true; }
+  if (/^obrazovka\s+cela/.test(a)) { ytCela(true); return true; }
+  if (/^obrazovka\s+mala/.test(a)) { ytCela(false); return true; }
   if ((m = a.match(/^pust\s+(\S+)/))) { var st = STANICE.filter(function (s) { return s.id === m[1]; })[0] ? m[1] : najdiStanici(m[1]); if (st) { zrusTicho(); pust(st); return true; } return false; }
   if (/^zapni/.test(a)) { zrusTicho(); pust(posledni || 'radiozurnal'); return true; }
   if (/^vypni/.test(a)) { vypni(); zrusUsinani(true); return true; }
@@ -628,7 +751,7 @@ function provedAkci(a) {
   if ((m = a.match(/^budik\s+(\d{1,2})[:.](\d{2})(?:\s+(\S+))?/))) { nastavBudik(Number(m[1]), Number(m[2]), m[3] ? (najdiStanici(m[3]) || m[3]) : null); return true; }
   if (/^co hraje/.test(a)) { coHraje(); return true; }
   if ((m = a.match(/^pocasi\s*(.*)$/))) { x = m[1].replace(/^zitra\s*/, ''); pocasi((/zitra/.test(m[1]) ? 'zítra ' : '') + (x ? 'v ' + x : '')); return true; }
-  if ((m = a.match(/^mesto\s+(.+)$/))) { var nm = m[1]; najdiMesto(nm).then(function (g) { if (g) { mesto = g.name; ulozit('mesto', mesto); el('mesto').value = mesto; } }); return true; }
+  if ((m = a.match(/^mesto\s+(.+)$/))) { var nm = m[1]; najdiMesto(nm).then(function (g) { if (g) { mesto = g.name; el('mesto').value = mesto; } }); return true; }
   if (/^hlas\s+tisi/.test(a)) { posunHlasu(-0.12); return true; }
   if (/^hlas\s+hlasiteji/.test(a)) { posunHlasu(0.12); return true; }
   if (/^pokec\s+start/.test(a)) { zacniPokec(); return true; }
@@ -697,7 +820,7 @@ function zeptejSeAI(veta, alternativy) {
   el('kruh').textContent = '🤖'; el('prekryvText').textContent = 'Přemýšlím…'; el('prekryvSlysim').textContent = '„' + veta + '“';
   el('prekryv').hidden = false; el('prekryv').className = 'prekryv' + (pokec ? ' pokec' : '');
   var telo = { tajne: RADIO_AI_TAJNE, veta: veta, alternativy: alternativy || [], historie: historieProAI().slice(0, -1),
-    hraje: pokec ? (pokecStanice ? nazevSt(pokecStanice) + ' (pozastaveno kvůli povídání)' : 'nic') : (aktualni ? nazevSt(aktualni) : 'nic'),
+    hraje: pokec ? (pokecStanice ? nazevSt(pokecStanice) + ' (pozastaveno kvůli povídání)' : 'nic') : (yt.aktivni ? 'YouTube klip: ' + yt.nazev : (aktualni ? nazevSt(aktualni) : 'nic')),
     hlasitost: hlas10(), budik: textBudiku(), mesto: mesto, pisnicky: pisnickyProAI(), rezim: pokec ? 'pokec' : 'prikaz' };
   var tukani = setInterval(function () { if (aiBezi && Date.now() > mluviDo) tonPremysli(); }, 1400);
   var hlidac = setTimeout(function () {
@@ -774,6 +897,7 @@ function zacniPokec() {
   if (pokec) return;
   pokec = true; pokecPosledni = Date.now();
   pokecStanice = aktualni;
+  if (yt.aktivni && yt.player && yt.player.pauseVideo) { try { yt.player.pauseVideo(); } catch (x) {} }
   if (aktualni) { audio.pause(); }            /* rádio úplně stojí → mikrofon neslyší moderátory */
   cekaNaPrikaz = 0; ztlumeno = false;
   log('💬 Pokec začal');
@@ -785,7 +909,8 @@ function skonciPokec(pustitRadio) {
   pokec = false; historie = [];
   log('💬 Pokec skončil');
   el('prekryv').hidden = true; document.title = '📻 Hey rádio';
-  if (pustitRadio && pokecStanice) { audio.muted = !!ticho; pust(pokecStanice); }
+  if (pustitRadio && yt.aktivni && yt.player && yt.player.playVideo) { try { yt.player.playVideo(); } catch (x) {} }
+  else if (pustitRadio && pokecStanice) { audio.muted = !!ticho; pust(pokecStanice); }
   pokecStanice = null;
   stav('Poslouchám – řekněte „Hey rádio“…', 'posloucha');
 }
@@ -1041,7 +1166,7 @@ el('tlTiseji').onclick = function () { nastavHlasitost(hlasitost - 0.1); };
 el('hlasitost').oninput = function () { nastavHlasitost(this.value / 100); };
 if (window.speechSynthesis) speechSynthesis.onvoiceschanged = function () {};
 el('mesto').value = mesto;
-el('mesto').onchange = function () { var v = this.value.trim(); if (v) { mesto = v; ulozit('mesto', v); } };
+el('mesto').onchange = function () { var v = this.value.trim(); if (v) { mesto = v; } };
 vykresliTl();
 stavCasovacu();
 vykresliPisnicky();
