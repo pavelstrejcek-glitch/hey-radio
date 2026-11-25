@@ -672,6 +672,8 @@ rekni = function (t, potom) {
     if (hotovo || moje !== mluvi) return; hotovo = true;
     mluvi = 0; mluviDo = Date.now() + 800;
     audio.muted = !!ticho || pokec;
+    /* Pavel 25. 11.: Chrome po vlastním mluvení často „ohluchne“ – mikrofon hned preventivně obnovit */
+    if (bezi && rec) { posledniZivot = Date.now(); try { rec.abort(); } catch (x) {} }
     if (potom) potom();
   };
   var dalsi = function () {
@@ -983,7 +985,7 @@ function startRec() {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { bezi = false; tonChyba(); rekni('Nemám povolený mikrofon.'); stav('Mikrofon není povolený. Povolte ho v Chrome (ikona vlevo v adresním řádku) a klikněte znovu na Spustit.', 'chyba'); el('start').hidden = false; }
     else if (e.error !== 'no-speech' && e.error !== 'aborted') log('Rozpoznávání: ' + e.error);
   };
-  rec.onend = function () { recAktivni = false; if (bezi) setTimeout(spustRec, 200); };
+  rec.onend = function () { recAktivni = false; if (bezi) setTimeout(spustRec, 100); };
   bezi = true;
   try { rec.start(); } catch (x) {}
   startMeric();
