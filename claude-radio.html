@@ -648,7 +648,16 @@ function ztlum(ano) {
 }
 
 /* ---------- AI (Pavel 25. 11.: AI rozumí všemu, pokec, ignoruje hlas z rádia) ---------- */
-var osloveno = false, slysenoPoOsloveni = '', opakovani = 0, wakeZUtrzku = false;   /* Pavel 25. 11.: když nerozumí, ať to řekne */
+var osloveno = false, slysenoPoOsloveni = '', opakovani = 0, wakeZUtrzku = false;
+/* Pavel 25. 11.: „Ano?“ hned – jakmile slyší samotné oslovení a chvilku ticho, nečeká na konec věty od Chrome */
+var anoReceno = false, anoT = null, ANO_PO_MS = 550;
+function rekniAnoHned() {
+  anoT = null;
+  if (!cekaNaPrikaz || aiBezi || anoReceno || pokec) return;
+  anoReceno = true; cekaNaPrikaz = Date.now() + 30000;
+  log('👂 Ano? (hned)');
+  rekni('Ano?', function () { cekaNaPrikaz = Date.now(); el('prekryvText').textContent = 'Poslouchám… řekněte, co chcete'; }, true);
+}   /* Pavel 25. 11.: když nerozumí, ať to řekne */
 var aiBezi = false, historie = [], pokec = false, pokecPosledni = 0, pokecStanice = null;
 var mluviDo = 0;                       /* do kdy ignorovat mikrofon (rádio samo mluví) */
 var POKEC_TICHO_MS = 90000;           /* pokec skončí po 1,5 min ticha */
@@ -780,7 +789,7 @@ function jeMojeOzvena(x) {
 }
 /* Mluvení: během řeči a chvíli po ní se mikrofon ignoruje (neslyší sám sebe). */
 var rekniPuvodni = rekni;
-rekni = function (t, potom) {
+rekni = function (t, potom, nechMic) {
   t = String(t || '');
   mluviDo = Date.now() + 2000 + t.length * 85;
   if (!window.speechSynthesis || !t) { mluviDo = 0; if (potom) potom(); return; }
@@ -796,7 +805,7 @@ rekni = function (t, potom) {
     mluvi = 0; mluviDo = Date.now() + 800;
     audio.muted = !!ticho || pokec;
     /* Pavel 25. 11.: Chrome po vlastním mluvení často „ohluchne“ – mikrofon hned preventivně obnovit */
-    if (bezi && rec) { posledniZivot = Date.now(); try { rec.abort(); } catch (x) {} }
+    if (bezi && rec && !nechMic) { posledniZivot = Date.now(); try { rec.abort(); } catch (x) {} }
     if (potom) potom();
   };
   var dalsi = function () {
@@ -1070,14 +1079,21 @@ function startRec() {
       var osl = texty.some(maOsloveni_);
       if (osl && !cekaNaPrikaz && !aiBezi) {
         cekaNaPrikaz = Date.now(); ztlum(true); pipni(true);
-        osloveno = texty.some(silneOsloveni_) ? 'silne' : 'slabe'; slysenoPoOsloveni = ''; opakovani = 0;
+        osloveno = texty.some(silneOsloveni_) ? 'silne' : 'slabe'; slysenoPoOsloveni = ''; opakovani = 0; anoReceno = false;
         wakeZUtrzku = !r.isFinal;   /* probuzeno z neúplného útržku – ověří se na celé větě */
         log('👂 oslovení (' + osloveno + '): ' + texty[0]);
         stav('Ano? Řekněte, co chcete…', 'ceka');
         ukazNaslouchani();
       }
       if (cekaNaPrikaz) { el('prekryvSlysim').textContent = texty[0]; if (ocisti(texty[0]).length > 1) slysenoPoOsloveni = texty[0]; }
-      if (!r.isFinal) continue;
+      if (!r.isFinal) {
+        if (cekaNaPrikaz && !aiBezi && !anoReceno) {
+          clearTimeout(anoT);
+          if (ocisti(texty[0]).length < 2 && Date.now() - cekaNaPrikaz < 4000) anoT = setTimeout(rekniAnoHned, ANO_PO_MS);   /* jen „rádio“ a pauza */
+        }
+        continue;
+      }
+      clearTimeout(anoT);
       log('Slyším: ' + texty[0]);
       if (!cekaNaPrikaz || Date.now() - cekaNaPrikaz > CEKAT_MS || aiBezi) continue;
       /* Pavel 25. 11.: útržek „rádi“ z moderátora probudil rádio – rozhoduje až CELÁ věta */
@@ -1092,6 +1108,8 @@ function startRec() {
       }
       var veta = ocisti(texty[0]);
       if (veta.length < 2) {                                                   /* jen „rádio“ – řekne „Ano?“ a čeká na povel */
+        if (anoReceno) { if (Date.now() >= mluviDo) cekaNaPrikaz = Date.now(); continue; }   /* „Ano?“ už zaznělo hned */
+        anoReceno = true;
         cekaNaPrikaz = Date.now() + 30000;
         rekni('Ano?', function () { cekaNaPrikaz = Date.now(); el('prekryvText').textContent = 'Poslouchám… řekněte, co chcete'; });
         continue;
