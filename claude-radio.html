@@ -703,6 +703,7 @@ function rekniAnoHned() {
   anoT = null;
   if (!cekaNaPrikaz || aiBezi || anoReceno || pokec) return;
   anoReceno = true; cekaNaPrikaz = Date.now() + 30000;
+  wakeZUtrzku = false;   /* oslovení potvrzené – povel po „Ano?“ už „rádio“ neobsahuje */
   log('👂 Ano? (hned)');
   rekni('Ano?', function () { cekaNaPrikaz = Date.now(); el('prekryvText').textContent = 'Poslouchám… řekněte, co chcete'; }, true);
 }   /* Pavel 25. 11.: když nerozumí, ať to řekne */
