@@ -410,12 +410,13 @@ function poznejPoslechem(s) {
     src.connect(proc); proc.connect(ctx.destination);
     setTimeout(function () {
       src.disconnect(); proc.disconnect(); stream.getTracks().forEach(function (t) { t.stop(); });
+      setTimeout(function () { posledniZivot = Date.now(); try { rec.abort(); } catch (x) {} }, 300);   /* Chrome po nahrávání často „ohluchne“ – obnovit rozpoznávání */
       var sr = ctx.sampleRate; ctx.close();
       var wav = wavZ(kusy, n, sr);
       hotovo();
       el('kruh').textContent = '🤖'; el('prekryvText').textContent = 'Poznávám…';
       aiBezi = true;
-      var zrus = new AbortController(); var lim = setTimeout(function () { zrus.abort(); }, 40000);
+      var zrus = new AbortController(); var lim = setTimeout(function () { zrus.abort(); }, 60000);
       fetch(RADIO_AI_URL, { method: 'POST', signal: zrus.signal, body: JSON.stringify({ tajne: RADIO_AI_TAJNE, audio: wav, mime: 'audio/wav', stanice: s.nazev }) })
         .then(function (r) { clearTimeout(lim); return r.json(); })
         .then(function (o) {
@@ -882,7 +883,7 @@ function startMeric() {
     (function krok() {
       an.getByteTimeDomainData(buf);
       var max = 0; for (var i = 0; i < buf.length; i++) { var v = Math.abs(buf[i] - 128); if (v > max) max = v; }
-      if (max > 10) posledniZvuk = Date.now();   /* pro hlídač: mikrofon slyší zvuk */
+      if (max > 6) posledniZvuk = Date.now();   /* pro hlídač: mikrofon slyší zvuk */
       el('micLevel').style.width = Math.min(100, Math.round(max / 128 * 100 * 2.2)) + '%';
       requestAnimationFrame(krok);
     })();
@@ -964,20 +965,20 @@ function startRec() {
 
 /* Hlídač mikrofonu (Pavel 25. 11.: „slovem rádio ho už neprobudím“):
    Chrome rozpoznávání občas tiše vypne nebo zamrzne – tady se znovu nahodí. */
-var recAktivni = false, posledniZivot = Date.now(), posledniZvuk = 0, zvukOd = 0;
+var recAktivni = false, posledniZivot = Date.now(), posledniZvuk = 0, zvukOd = 0, zvukSekund = 0;
 function spustRec() { if (!bezi || !rec) return; try { rec.start(); } catch (x) {} }
 setInterval(function () {
   if (!bezi || !rec) return;
   if (!recAktivni) { spustRec(); return; }
   /* 40 s bez jediného slova (ani z rádia) → rozpoznávání nejspíš zamrzlo, restart */
   /* Chrome zamrzne: mikrofon slyší zvuk, ale 8 s nic nerozpozná → hned obnovit. V tichu nechat být (max. jednou za 2 min). */
-  var slysiZvuk = Date.now() - posledniZvuk < 1500;
-  if (slysiZvuk && !zvukOd) zvukOd = Date.now();
-  if (!slysiZvuk) zvukOd = 0;
-  var zamrzlo = slysiZvuk && zvukOd && Date.now() - zvukOd > 8000 && Date.now() - posledniZivot > 8000;
+  /* počítá vteřiny se zvukem od posledního rozpoznaného slova */
+  if (Date.now() - posledniZvuk < 1100) zvukSekund++;
+  if (Date.now() - posledniZivot < 1500) zvukSekund = 0;
+  var zamrzlo = zvukSekund >= 5 && Date.now() - posledniZivot > 12000;
   var dlouhoTicho = Date.now() - posledniZivot > 120000;
   if ((zamrzlo || dlouhoTicho) && !aiBezi && !posloucha && Date.now() > mluviDo) {
-    posledniZivot = Date.now(); zvukOd = 0;
+    posledniZivot = Date.now(); zvukOd = 0; zvukSekund = 0;
     if (zamrzlo) log('Mikrofon zamrzl – obnovuji…');
     try { rec.abort(); } catch (x) {}
   }
