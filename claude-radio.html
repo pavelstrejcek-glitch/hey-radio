@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title>Hey rádio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#14161c; --karta:#1f232c; --txt:#eef0f4; --sed:#9aa3b2; --akc:#f2b134; --ok:#3ecf8e; --err:#ff6b6b; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--txt); }
+  .obal { max-width:720px; margin:0 auto; padding:28px 20px 40px; }
+  h1 { margin:0 0 4px; font-size:28px; }
+  .pod { color:var(--sed); margin:0 0 22px; font-size:15px; }
+  .start { width:100%; padding:22px; font-size:22px; font-weight:700; border:0; border-radius:14px; background:var(--akc); color:#1a1a1a; cursor:pointer; }
+  .start[hidden] { display:none; }
+  .stav { display:flex; align-items:center; gap:18px; background:var(--karta); border-radius:14px; padding:18px 20px; margin:18px 0; }
+  .tecka { width:46px; height:46px; border-radius:50%; background:var(--sed); flex:none; display:flex; align-items:center; justify-content:center; font-size:22px; }
+  .tecka::after { content:'🎙'; }
+  .tecka.posloucha { background:var(--ok); animation:vlna 1.6s infinite; }
+  .tecka.ceka { background:var(--akc); animation:pulz 0.8s infinite alternate; }
+  .tecka.chyba { background:var(--err); }
+  @keyframes pulz { from { opacity:.4 } to { opacity:1 } }
+  .stavText { font-size:20px; font-weight:600; }
+  .hraje { background:var(--karta); border-radius:14px; padding:18px; margin-bottom:18px; }
+  .hraje .nadpis { color:var(--sed); font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
+  .hraje .stanice { font-size:26px; font-weight:700; margin-top:4px; }
+  .stanice-tl { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:18px; }
+  .stanice-tl button, .ovl button { padding:16px; font-size:17px; border-radius:12px; border:1px solid #333a47; background:var(--karta); color:var(--txt); cursor:pointer; }
+  .stanice-tl button.on { border-color:var(--akc); background:#2b2617; }
+  .ovl { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:12px; }
+  .hlas { display:flex; align-items:center; gap:12px; margin-bottom:22px; color:var(--sed); }
+  .hlas input { flex:1; }
+  .napoveda { background:var(--karta); border-radius:14px; padding:16px 18px; font-size:15px; line-height:1.6; }
+  .napoveda b { color:var(--akc); }
+  .casovace { background:#2b2617; border:1px solid var(--akc); border-radius:12px; padding:12px 16px; margin-bottom:14px; font-size:16px; }
+  .casovace[hidden] { display:none; }
+  .prekryv { position:fixed; inset:0; background:rgba(10,12,18,.82); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:50; }
+  .prekryv[hidden] { display:none; }
+  .kruh { width:190px; height:190px; border-radius:50%; background:var(--ok); display:flex; align-items:center; justify-content:center; font-size:84px; box-shadow:0 0 0 0 rgba(62,207,142,.7); animation:vlna 1.1s infinite; }
+  .prekryv.hotovo .kruh { background:var(--akc); animation:none; }
+  .prekryv.chyba .kruh { background:var(--err); animation:none; }
+  .prekryv.pisen .kruh { background:#c86bfa; animation:vlnaP 1.2s infinite; }
+  .pisnicky { background:var(--karta); border-radius:12px; padding:12px 16px; margin-bottom:14px; font-size:15px; line-height:1.7; }
+  .pisnicky[hidden] { display:none; }
+  .pisnicky .nadpis { color:var(--sed); font-size:13px; margin-bottom:4px; }
+  .prekryv.pokec .kruh { background:#5b7cfa; animation:vlnaP 1.6s infinite; }
+  @keyframes vlnaP { 0% { box-shadow:0 0 0 0 rgba(91,124,250,.7); } 100% { box-shadow:0 0 0 60px rgba(91,124,250,0); } }
+  .prekryv.pokec .velky { font-size:26px; font-weight:600; max-width:80vw; text-align:center; line-height:1.4; }
+  @keyframes vlna { 0% { box-shadow:0 0 0 0 rgba(62,207,142,.7); } 100% { box-shadow:0 0 0 60px rgba(62,207,142,0); } }
+  .prekryv .velky { font-size:34px; font-weight:800; margin-top:34px; }
+  .prekryv .slysim { font-size:24px; color:var(--sed); margin-top:14px; min-height:32px; max-width:90vw; text-align:center; }
+  .prekryv .odpocet { width:320px; height:6px; background:#333a47; border-radius:3px; margin-top:26px; overflow:hidden; }
+  .prekryv .odpocet div { height:100%; background:var(--ok); width:100%; }
+  .mic { display:flex; align-items:center; gap:12px; margin:-6px 0 18px; color:var(--sed); font-size:14px; }
+  .mic .lista { flex:1; height:10px; background:#2a2f3a; border-radius:5px; overflow:hidden; }
+  .mic .lista div { height:100%; width:0; background:linear-gradient(90deg, var(--ok), var(--akc), var(--err)); transition:width .08s; }
+  .zive { color:var(--sed); font-size:15px; margin:-8px 0 16px; min-height:20px; font-style:italic; }
+  .log { margin-top:16px; color:var(--sed); font-size:13px; max-height:140px; overflow:auto; }
+  .log div { padding:2px 0; }
+</style>
+</head>
+<body>
+<div class="obal">
+  <h1>📻 Hey rádio</h1>
+  <p class="pod">Ovládání hlasem česky. Oslovte <b>„rádio“</b> a mluvte normálně – rozumí umělá inteligence. Nebo <b>„rádio, pojďme pokecat“</b>.</p>
+
+  <button class="start" id="start">▶ Spustit poslouchání</button>
+
+  <div class="stav"><div class="tecka" id="tecka"></div><div class="stavText" id="stavText">Klikněte na „Spustit poslouchání“ a povolte mikrofon.</div></div>
+
+  <div class="mic">🎙 Mikrofon <div class="lista"><div id="micLevel"></div></div>
+    <select id="citlivost" style="padding:6px;border-radius:8px;background:#1f232c;color:#eef0f4;border:1px solid #333a47">
+      <option value="normalni">Oslovení: „Hey rádio“</option>
+      <option value="vysoka">Citlivé: stačí „rádio“ / „zapni…“ / „přepni na…“</option>
+    </select></div>
+  <div class="zive" id="zive"></div>
+  <div class="prekryv" id="prekryv" hidden><div class="kruh" id="kruh">🎙</div><div class="velky" id="prekryvText">Poslouchám…</div><div class="slysim" id="prekryvSlysim"></div><div class="odpocet"><div id="odpocet"></div></div></div>
+
+  <div class="hraje"><div class="nadpis">Hraje</div><div class="stanice" id="hraje">nic</div></div>
+
+  <div class="stanice-tl" id="staniceTl"></div>
+
+  <div class="ovl">
+    <button id="tlTiseji">🔉 Zeslabit</button>
+    <button id="tlStop">⏹ Vypnout</button>
+    <button id="tlHlasiteji">🔊 Zesílit</button>
+  </div>
+  <div class="hlas">🔈 <input type="range" id="hlasitost" min="0" max="100" step="10" value="60"> <span id="hlasCislo">hlasitost 6</span></div>
+
+  <div class="casovace" id="casovace" hidden></div>
+  <div class="pisnicky" id="pisnickyBlok" hidden><div class="nadpis">🎵 Naposledy poznané písničky</div><div id="pisnickySeznam"></div></div>
+  <div class="hlas">📍 Město pro počasí: <input type="text" id="mesto" style="flex:1;padding:8px;border-radius:8px;border:1px solid #333a47;background:#1f232c;color:#eef0f4"></div>
+  <div class="napoveda">
+    Začněte <b>„rádio“</b> nebo <b>„hey rádio“</b> a pak mluvte normálně, jak vás napadne – rozumí tomu umělá inteligence:<br>
+    „rádio, <b>pusť něco veselého a dej to hlasitěji</b>“ · „rádio, <b>je to moc nahlas</b>“ · „rádio, <b>hlasitost 3</b>“ · „rádio, <b>vypni to za půl hodiny</b>“<br>
+    „rádio, <b>vzbuď mě zítra ve čtvrt na sedm Blaníkem</b>“ · „rádio, <b>co to hraje?</b>“ / „<b>kdo to zpívá?</b>“ (poslechne si písničku a řekne interpreta) · „<b>co hrálo předtím?</b>“ · „rádio, <b>jaké bude zítra počasí v Brně?</b>“<br>
+    „rádio, <b>kolik je 15 % z 2 400?</b>“ · „rádio, <b>jak hrála Sparta?</b>“ · „rádio, <b>jaký je kurz eura?</b>“ – a hned „<b>a co dolar?</b>“ (3 minuty si pamatuje)<br>
+    💬 <b>„rádio, pojďme pokecat“</b> – rádio se zastaví a můžete si povídat bez oslovování. Konec: <b>„konec“</b> nebo <b>„díky, to je vše“</b> (sám skončí po 1,5 min ticha).<br>
+    Hlas moderátorů a reklam z rádia se ignoruje.
+  </div>
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+/* Pavel 25. 11. 2026 – „Hey rádio“: ovládání rádia česky hlasem (Chrome, rozpoznávání řeči cs-CZ). */
+var STANICE = [
+  { id: 'country', nazev: 'Country Radio', slova: ['country', 'kantry', 'kántry', 'kontry'],
+    url: ['https://icecast4.play.cz/country128.mp3', 'https://icecast2.play.cz/country128aac'] },
+  { id: 'blanik', nazev: 'Rádio Blaník', slova: ['blaník', 'blanik'],
+    url: ['https://ice.abradio.cz/blanikfm128.mp3', 'https://ice.abradio.cz/blanikcz128.mp3'] },
+  { id: 'radiozurnal', nazev: 'Radiožurnál', slova: ['radiožurnál', 'radiožurnal', 'rádio žurnál', 'radio žurnál', 'žurnál', 'žurnal', 'zprávy', 'zpravy'], cro: 'radiozurnal',
+    url: ['https://rozhlas.stream/radiozurnal_mp3_128.mp3', 'https://icecast7.play.cz/cro1-128.mp3'] },
+  { id: 'dvojka', nazev: 'Dvojka', slova: ['dvojk', 'dvojc', 'dvojku'], cro: 'dvojka',
+    url: ['https://rozhlas.stream/dvojka_mp3_128.mp3', 'https://icecast6.play.cz/cro2-128.mp3'] },
+  { id: 'evropa2', nazev: 'Evropa 2', slova: ['evrop', 'europa', 'éčko'],
+    url: ['https://ice.actve.net/fm-evropa2-128', 'https://ice.actve.net/fm-evropa2-aac'] },
+  { id: 'impuls', nazev: 'Rádio Impuls', slova: ['impuls', 'impulz'],
+    url: ['https://icecast5.play.cz/impuls.mp3', 'https://icecast1.play.cz/impuls.mp3'] },
+  { id: 'kiss', nazev: 'Rádio Kiss', slova: ['kiss', 'kis ', 'kys', 'kisu', 'kissu'],
+    url: ['https://icecast4.play.cz/kiss128.mp3', 'https://icecast2.play.cz/kiss128.mp3'] },
+  { id: 'frekvence1', nazev: 'Frekvence 1', slova: ['frekvenc', 'frekvenci'],
+    url: ['https://ice.actve.net/fm-frekvence1-128'] },
+  { id: 'rock', nazev: 'Rock Radio', slova: ['rock', 'rok rádio', 'rok radio', 'rokrádio'],
+    url: ['https://ice.abradio.cz/rockradio128.mp3'] }
+];
+var OSLOVENI = /(^|\s)(hey|hej|hei|ahoj|haj|hey\s*hey|ej|hej\s*hej|hej|hejt?|hejá|hele)\s*,?\s*(rádi[oaou]|radi[oaou]|rádiu|radiu|rádijo|radijo)\b|hejrádio|hejradio|heyradio|heyrádio/;
+/* Citlivý režim: stačí „rádio“ + příkaz (pusť, zapni, vypni, zesil…) v jedné větě. */
+var OSLOVENI_CITLIVE = /(^|\s)(rádi[oaue]?|radi[oaue]?|rádijo|radijo|rádiem|radiem|rádjo|radjo|rádyo)(?=[\s,.!?]|$)/;   /* Chrome často slyší „rádi“, „rádia“… */
+var PRIKAZ_SLOVO = /(hlasitost|pusť|pust|zapni|vypni|zesil|zesláb|zeslab|ztiš|přepni|prepni|hraj|stop|zastav|ticho|vzbuď|budík|kolik|počasí|pocasi|co hraje|zpátky)/;
+var citlivost = 'normalni';
+var CEKAT_MS = 8000;
+/* Pavel 25. 11.: AI (Gemini přes Apps Script „Hey radio AI“ na účtu Pavel) – volá se, když rádio větě samo nerozumí */
+var RADIO_AI_URL = 'https://script.google.com/macros/s/AKfycbx_HHrEpsuzfYdUMvEblUMClHv5y7-snUowbStslnbXjGxsCW_9xumNVAOzGoILedQ9YA/exec';
+var RADIO_AI_TAJNE = 'f71c441c50f3cf6c7bbd1abf';
+
+var audio = new Audio();
+audio.preload = 'none';
+var hlasitost = 0.6;
+audio.volume = hlasitost;
+var aktualni = null, posledni = null, pokusUrl = 0;
+var rec = null, bezi = false, cekaNaPrikaz = 0, ztlumeno = false;
+
+function el(id) { return document.getElementById(id); }
+function log(t) { var d = document.createElement('div'); d.textContent = new Date().toLocaleTimeString('cs-CZ') + '  ' + t; var l = el('log'); l.insertBefore(d, l.firstChild); while (l.children.length > 40) l.removeChild(l.lastChild); }
+function stav(t, druh) { el('stavText').textContent = t; el('tecka').className = 'tecka ' + (druh || ''); }
+function bez(t) { return String(t || '').toLowerCase().normalize('NFC'); }
+
+/* Zvukové signály (Pavel 25. 11.: „budu to používat bez monitoru – musím vědět, co dělá“) */
+function ton(seq, hl) {
+  try {
+    var ctx = pipni.ctx || (pipni.ctx = new (window.AudioContext || window.webkitAudioContext)());
+    var t = ctx.currentTime;
+    seq.forEach(function (x) {
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = x[0];
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(hl || 0.12, t + 0.02); g.gain.linearRampToValueAtTime(0, t + x[1]);
+      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + x[1] + 0.02);
+      t += x[1] * 0.85;
+    });
+  } catch (e) {}
+}
+function pipni(vys) {
+  if (vys) ton([[660, 0.11], [990, 0.16]]);        /* probuzení – stoupavé „ding-dong“ */
+  else ton([[700, 0.11], [470, 0.18]], 0.09);       /* konec poslouchání – klesavé */
+}
+function tonPremysli() { ton([[520, 0.09]], 0.04); } /* tiché ťuknutí, když přemýšlí */
+function tonChyba() { ton([[300, 0.18], [220, 0.25]], 0.1); }
+/* Pavel 25. 11.: když se čte (počasí, co hraje, čas…), rádio se ztlumí a po přečtení zase pustí. */
+var mluvi = 0;
+function rekni(t) {
+  try {
+    if (!window.speechSynthesis) return;
+    var u = new SpeechSynthesisUtterance(t); u.lang = 'cs-CZ'; u.rate = 1.05;
+    var v = speechSynthesis.getVoices().filter(function (x) { return /^cs/i.test(x.lang); })[0];
+    if (v) u.voice = v;
+    var moje = ++mluvi;
+    audio.muted = true;
+    var hotovo = function () {
+      if (moje !== mluvi) return;
+      mluvi = 0;
+      audio.muted = !!ticho;
+    };
+    u.onend = hotovo; u.onerror = hotovo;
+    setTimeout(hotovo, 2500 + String(t).length * 90);   /* pojistka: Chrome občas onend nepošle */
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  } catch (e) { audio.muted = !!ticho; }
+}
+function vykresliTl() {
+  var b = el('staniceTl'); b.innerHTML = '';
+  STANICE.forEach(function (s) {
+    var t = document.createElement('button');
+    t.textContent = s.nazev; t.className = aktualni === s.id ? 'on' : '';
+    t.onclick = function () { pust(s.id); };
+    b.appendChild(t);
+  });
+  el('hraje').textContent = aktualni ? STANICE.filter(function (s) { return s.id === aktualni; })[0].nazev : 'nic';
+}
+
+function nastavHlasitost(v) {
+  hlasitost = Math.max(0, Math.min(1, Math.round(v * 100) / 100));
+  if (!ztlumeno) audio.volume = hlasitost;
+  el('hlasitost').value = Math.round(hlasitost * 100);
+  el('hlasCislo').textContent = 'hlasitost ' + Math.round(hlasitost * 10) + (hlasitost === 0 ? ' (ztlumeno)' : '');
+}
+
+function pust(id) {
+  var s = STANICE.filter(function (x) { return x.id === id; })[0];
+  if (!s) return;
+  aktualni = id; posledni = id; pokusUrl = 0;
+  hrajUrl(s);
+  vykresliTl();
+  log('Pouštím ' + s.nazev);
+}
+function hrajUrl(s) {
+  audio.src = s.url[pokusUrl % s.url.length];
+  audio.volume = ztlumeno ? Math.min(hlasitost, 0.05) : hlasitost;
+  audio.play().catch(function (e) { log('Přehrání se nepovedlo: ' + e.message); });
+}
+audio.addEventListener('error', function () {
+  var s = STANICE.filter(function (x) { return x.id === aktualni; })[0];
+  if (!s || !s.url) return;
+  pokusUrl++;
+  if (pokusUrl < s.url.length * 2) { log(s.nazev + ': stream nejde, zkouším jiný…'); setTimeout(function () { hrajUrl(s); }, 1500); }
+  else { log(s.nazev + ': stream teď nejde.'); stav(s.nazev + ' teď nejde přehrát.', 'chyba'); }
+});
+function vypni(tise) {
+  audio.pause(); audio.removeAttribute('src'); audio.load();
+  if (aktualni) posledni = aktualni;
+  aktualni = null; vykresliTl();
+  if (!tise) log('Vypnuto');
+}
+
+/* ---------- pomocné: čísla, čas ---------- */
+var CISLA = { 'nula':0,'nulu':0,'jednu':1,'jedna':1,'jeden':1,'dvě':2,'dva':2,'tři':3,'čtyři':4,'pět':5,'šest':6,'sedm':7,'osm':8,'devět':9,'deset':10,
+  'jedenáct':11,'dvanáct':12,'patnáct':15,'dvacet':20,'pětadvacet':25,'třicet':30,'čtyřicet':40,'pětačtyřicet':45,'padesát':50,'šedesát':60,'devadesát':90 };
+function cislo(s) { s = String(s || '').trim(); if (/^\d+$/.test(s)) return Number(s); return CISLA[s] != null ? CISLA[s] : null; }
+/* „za 30 minut“, „za hodinu“, „za půl hodiny“, „za dvě hodiny“ → minuty */
+function minutyZ(t) {
+  if (/půl hodin|pul hodin/.test(t)) return 30;
+  if (/čtvrt hodin|ctvrt hodin/.test(t)) return 15;
+  var m = t.match(/za\s+(\S+)\s+(minut|minuty|minutu|min)/); if (m && cislo(m[1])) return cislo(m[1]);
+  m = t.match(/za\s+(\S+)\s+(hodin|hodiny|hodinu)/); if (m && cislo(m[1])) return cislo(m[1]) * 60;
+  if (/za hodinu/.test(t)) return 60;
+  m = t.match(/(\d+)\s*(minut|min)/); if (m) return Number(m[1]);
+  return null;
+}
+/* „v 6“, „v 6:30“, „v 6 30“, „na 6.15“, „v šest“ → {h, m} */
+function casZ(t) {
+  var m = t.match(/(?:\bv|\bna|\bve)\s+(\d{1,2})(?:[:.\s](\d{2}))?/);
+  if (m) return { h: Number(m[1]), m: m[2] ? Number(m[2]) : 0 };
+  m = t.match(/(?:\bv|\bna|\bve)\s+(\S+)/);
+  if (m && cislo(m[1]) != null && cislo(m[1]) <= 23) return { h: cislo(m[1]), m: 0 };
+  return null;
+}
+function dvoj(n) { return (n < 10 ? '0' : '') + n; }
+var DNY = ['neděle', 'pondělí', 'úterý', 'středa', 'čtvrtek', 'pátek', 'sobota'];
+var MESICE = ['ledna', 'února', 'března', 'dubna', 'května', 'června', 'července', 'srpna', 'září', 'října', 'listopadu', 'prosince'];
+function ulozit(k, v) { try { localStorage.setItem('heyRadio.' + k, JSON.stringify(v)); } catch (e) {} }
+function nacist(k, d) { try { var v = localStorage.getItem('heyRadio.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
+
+/* ---------- usínání ---------- */
+var usinani = null;
+function nastavUsinani(min) {
+  zrusUsinani(true);
+  var konec = Date.now() + min * 60000;
+  usinani = { konec: konec, t: setInterval(function () {
+    var zbyva = konec - Date.now();
+    if (zbyva <= 30000 && zbyva > 0 && !ztlumeno) audio.volume = hlasitost * zbyva / 30000;
+    if (zbyva <= 0) { zrusUsinani(true); vypni(); nastavHlasitost(hlasitost); log('Usínání: vypnuto'); }
+    stavCasovacu();
+  }, 1000) };
+  stavCasovacu();
+}
+function zrusUsinani(tise) { if (usinani) { clearInterval(usinani.t); usinani = null; if (!tise) log('Usínání zrušeno'); } stavCasovacu(); }
+
+/* ---------- budík ---------- */
+var budik = nacist('budik', null), wakeLock = null;
+function nastavBudik(h, m, stanice) {
+  var d = new Date(); d.setHours(h, m, 0, 0);
+  if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+  budik = { kdy: d.getTime(), stanice: stanice || posledni || 'radiozurnal' };
+  ulozit('budik', budik); drzVzhuru(true); stavCasovacu();
+}
+function zrusBudik() { budik = null; ulozit('budik', null); drzVzhuru(false); stavCasovacu(); }
+function drzVzhuru(ano) {
+  try {
+    if (ano && navigator.wakeLock && !wakeLock) navigator.wakeLock.request('screen').then(function (w) { wakeLock = w; w.addEventListener('release', function () { wakeLock = null; }); }).catch(function () {});
+    if (!ano && wakeLock) { wakeLock.release(); wakeLock = null; }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', function () { if (!document.hidden && budik) drzVzhuru(true); });
+setInterval(function () {
+  if (budik && Date.now() >= budik.kdy) {
+    var st = budik.stanice; zrusBudik();
+    var cil = hlasitost; nastavHlasitost(0.1); pust(st);
+    rekni('Dobré ráno. Je ' + new Date().getHours() + ' hodin ' + new Date().getMinutes() + ' minut.');
+    var krok = setInterval(function () { if (hlasitost >= cil - 0.01) { clearInterval(krok); return; } nastavHlasitost(Math.min(cil, hlasitost + 0.05)); }, 5000);
+    log('Budík zazvonil');
+  }
+  if (budik) stavCasovacu();
+}, 1000);
+
+/* ---------- chvilkové ticho ---------- */
+var ticho = null;
+function chvilkuTicho(min) {
+  if (ticho) clearTimeout(ticho);
+  audio.muted = true; log('Ticho na ' + min + ' min');
+  ticho = setTimeout(function () { ticho = null; audio.muted = !!mluvi; log('Ticho skončilo'); stavCasovacu(); }, min * 60000);
+  stavCasovacu();
+}
+function zrusTicho() { if (ticho) { clearTimeout(ticho); ticho = null; } audio.muted = !!mluvi; stavCasovacu(); }
+
+function stavCasovacu() {
+  var r = [];
+  if (budik) { var d = new Date(budik.kdy); r.push('⏰ Budík ' + d.getHours() + ':' + dvoj(d.getMinutes()) + ' – ' + nazevSt(budik.stanice)); }
+  if (usinani) { var z = Math.ceil((usinani.konec - Date.now()) / 60000); r.push('🌙 Vypnu za ' + z + ' min'); }
+  if (ticho) r.push('🔇 Chvilkové ticho');
+  el('casovace').textContent = r.join('   ·   ');
+  el('casovace').hidden = !r.length;
+}
+function nazevSt(id) { var s = STANICE.filter(function (x) { return x.id === id; })[0]; return s ? s.nazev : id; }
+
+/* ---------- co hraje (Pavel 25. 11.: „poslechni si písničku a řekni interpreta“) ----------
+   1) Český rozhlas posílá název písničky přímo v proudu → hned a přesně.
+   2) Ostatní stanice ho prohlížeči nedají → rádio si ~10 s písničky poslechne mikrofonem a pozná ji AI. */
+var pisnicky = nacist('pisnicky', []);   /* [{kdy, stanice, nazev}] – poslední poznané */
+function ulozPisnicku(nazev, stanice) {
+  pisnicky.unshift({ kdy: Date.now(), stanice: stanice, nazev: nazev });
+  pisnicky = pisnicky.slice(0, 15); ulozit('pisnicky', pisnicky); vykresliPisnicky();
+}
+function pisnickyProAI() {
+  return pisnicky.slice(0, 6).map(function (x) { var d = new Date(x.kdy); return d.getHours() + ':' + dvoj(d.getMinutes()) + ' ' + x.nazev + ' (' + x.stanice + ')'; }).join('; ');
+}
+function vykresliPisnicky() {
+  var e = el('pisnickySeznam'); if (!e) return;
+  e.innerHTML = '';
+  pisnicky.slice(0, 8).forEach(function (x) {
+    var d = new Date(x.kdy), r = document.createElement('div');
+    r.textContent = d.getHours() + ':' + dvoj(d.getMinutes()) + '  ·  ' + x.nazev + '  ·  ' + x.stanice;
+    e.appendChild(r);
+  });
+  el('pisnickyBlok').hidden = !pisnicky.length;
+}
+function icyNazev(url) {
+  /* přečte StreamTitle z proudu (funguje u Českého rozhlasu, ostatní to prohlížeči nepovolí) */
+  var ctl = new AbortController(); setTimeout(function () { ctl.abort(); }, 7000);
+  return fetch(url, { headers: { 'Icy-MetaData': '1' }, signal: ctl.signal }).then(function (r) {
+    var mi = +r.headers.get('icy-metaint'); if (!mi) { ctl.abort(); return null; }
+    var rd = r.body.getReader(), buf = new Uint8Array(0);
+    function cti() {
+      return rd.read().then(function (x) {
+        if (x.done) return null;
+        var n = new Uint8Array(buf.length + x.value.length); n.set(buf); n.set(x.value, buf.length); buf = n;
+        if (buf.length < mi + 1) return cti();
+        var len = buf[mi] * 16;
+        if (buf.length < mi + 1 + len) return cti();
+        ctl.abort();
+        var t = new TextDecoder('utf-8').decode(buf.slice(mi + 1, mi + 1 + len)).replace(/\0/g, '');
+        var m = t.match(/StreamTitle='(.*?)';/) || t.match(/StreamTitle='(.*)'/); return m ? m[1].trim() : null;
+      });
+    }
+    return cti();
+  }).catch(function () { return null; });
+}
+function coHraje() {
+  var s = STANICE.filter(function (x) { return x.id === aktualni; })[0];
+  if (!s) { rekni('Teď nic nehraje.'); return; }
+  if (s.cro) {
+    icyNazev(s.url[0]).then(function (t) {
+      var d = t ? t.split(/\s+-\s*/).map(function (x) { return x.trim(); }).filter(Boolean) : [];
+      if (d.length >= 2) {
+        var nazev = mala(d[d.length - 1]) + ' – ' + mala(d.slice(0, -1).join(' - '));   /* rozhlas posílá „NÁZEV - INTERPRET“ */
+        ulozPisnicku(nazev, s.nazev); log('🎵 ' + nazev); zavriNaslouchani('ok', nazev); rekni('Hraje ' + nazev + '.'); return;
+      }
+      if (d.length === 1) { log('📻 ' + d[0]); zavriNaslouchani('ok', d[0]); rekni('Teď tam běží ' + d[0] + '.'); return; }   /* zprávy, pořad */
+      poznejPoslechem(s);
+    });
+    return;
+  }
+  poznejPoslechem(s);
+}
+var posloucha = false;
+function poznejPoslechem(s) {
+  if (posloucha) return;
+  if (!navigator.mediaDevices || !window.AudioContext) { rekni('Tady neumím písničku poslouchat.'); return; }
+  posloucha = true;
+  var DELKA = 10;
+  /* rádio musí být slyšet: zrušit ztlumení, případně trochu přidat */
+  var puvodni = hlasitost; zrusTicho(); ztlum(false); audio.muted = false;
+  if (hlasitost < 0.35) { audio.volume = 0.35; }
+  mluviDo = Date.now() + (DELKA + 2) * 1000;   /* text písničky nebrat jako povely */
+  var p = el('prekryv'); p.hidden = false; p.className = 'prekryv pisen';
+  el('kruh').textContent = '🎵'; el('prekryvSlysim').textContent = s.nazev;
+  var start = Date.now() + 60000;
+  var odp = setInterval(function () { el('odpocet').style.width = Math.max(0, Math.min(100, 100 - (Date.now() - start) / (DELKA * 10))) + '%'; }, 100);
+  function hotovo(chyba) {
+    clearInterval(odp); posloucha = false;
+    audio.volume = ztlumeno ? Math.min(puvodni, 0.05) : puvodni; nastavHlasitost(puvodni);
+    if (chyba) { zavriNaslouchani('chyba', chyba); rekni(chyba); }
+  }
+  /* Pavel 25. 11.: nejdřív řekne, že si to poslechne – nahrávat se začne až po té větě */
+  el('prekryvText').textContent = 'Chvilku si to poslechnu…';
+  rekni('Moment, chvilku si to poslechnu a hned vám řeknu.', function () {
+  audio.muted = false; start = Date.now(); mluviDo = Date.now() + (DELKA + 2) * 1000;
+  el('prekryvText').textContent = 'Poslouchám písničku…';
+  navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } }).then(function (stream) {
+    var ctx = new AudioContext({ sampleRate: 16000 });
+    var src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1), kusy = [], n = 0;
+    proc.onaudioprocess = function (e) { var d = e.inputBuffer.getChannelData(0); kusy.push(new Float32Array(d)); n += d.length; };
+    src.connect(proc); proc.connect(ctx.destination);
+    setTimeout(function () {
+      src.disconnect(); proc.disconnect(); stream.getTracks().forEach(function (t) { t.stop(); });
+      var sr = ctx.sampleRate; ctx.close();
+      var wav = wavZ(kusy, n, sr);
+      hotovo();
+      el('kruh').textContent = '🤖'; el('prekryvText').textContent = 'Poznávám…';
+      aiBezi = true;
+      var zrus = new AbortController(); var lim = setTimeout(function () { zrus.abort(); }, 40000);
+      fetch(RADIO_AI_URL, { method: 'POST', signal: zrus.signal, body: JSON.stringify({ tajne: RADIO_AI_TAJNE, audio: wav, mime: 'audio/wav', stanice: s.nazev }) })
+        .then(function (r) { clearTimeout(lim); return r.json(); })
+        .then(function (o) {
+          aiBezi = false;
+          if (!o || !o.ok) { zavriNaslouchani('chyba', 'nepodařilo se'); rekni('Písničku se nepodařilo poznat.'); return; }
+          if (o.pisnicka) { ulozPisnicku(o.pisnicka + (o.jiste ? '' : ' (?)'), s.nazev); log('🎵 ' + o.pisnicka); }
+          zavriNaslouchani(o.pisnicka ? 'ok' : 'chyba', o.pisnicka || o.rekni);
+          rekni(o.rekni || 'Tu písničku jsem nepoznal.');
+        })
+        .catch(function () { aiBezi = false; zavriNaslouchani('chyba', 'nepodařilo se'); rekni('Písničku se teď nepodařilo poznat.'); });
+    }, DELKA * 1000);
+  }).catch(function () { hotovo('Nemám přístup k mikrofonu.'); });
+  });
+}
+function wavZ(kusy, n, sr) {
+  var buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf), o = 0;
+  function str(x) { for (var i = 0; i < x.length; i++) v.setUint8(o++, x.charCodeAt(i)); }
+  str('RIFF'); v.setUint32(o, 36 + n * 2, true); o += 4; str('WAVE'); str('fmt ');
+  v.setUint32(o, 16, true); o += 4; v.setUint16(o, 1, true); o += 2; v.setUint16(o, 1, true); o += 2;
+  v.setUint32(o, sr, true); o += 4; v.setUint32(o, sr * 2, true); o += 4; v.setUint16(o, 2, true); o += 2; v.setUint16(o, 16, true); o += 2;
+  str('data'); v.setUint32(o, n * 2, true); o += 4;
+  kusy.forEach(function (k) { for (var i = 0; i < k.length; i++) { var x = Math.max(-1, Math.min(1, k[i])); v.setInt16(o, x < 0 ? x * 0x8000 : x * 0x7fff, true); o += 2; } });
+  var b = new Uint8Array(buf), bin = '';
+  for (var i = 0; i < b.length; i += 8192) bin += String.fromCharCode.apply(null, b.subarray(i, i + 8192));
+  return btoa(bin);
+}
+function mala(t) { t = String(t || ''); return t === t.toUpperCase() ? t.toLowerCase().replace(/(^|\s)\S/g, function (x) { return x.toUpperCase(); }) : t; }
+
+/* ---------- počasí (Open-Meteo, zdarma bez klíče) ---------- */
+var mesto = nacist('mesto', 'Praha');
+var KODY = { 0:'jasno',1:'skoro jasno',2:'polojasno',3:'zataženo',45:'mlha',48:'mlha s námrazou',51:'mrholení',53:'mrholení',55:'silné mrholení',56:'mrznoucí mrholení',57:'mrznoucí mrholení',
+  61:'slabý déšť',63:'déšť',65:'silný déšť',66:'mrznoucí déšť',67:'mrznoucí déšť',71:'slabé sněžení',73:'sněžení',75:'silné sněžení',77:'sněhová zrna',80:'přeháňky',81:'přeháňky',82:'silné přeháňky',
+  85:'sněhové přeháňky',86:'silné sněhové přeháňky',95:'bouřky',96:'bouřky s kroupami',99:'bouřky s kroupami' };
+function tvaryMesta(w) {
+  w = w.trim(); var r = [w];
+  [[/ně$/, 'no'], [/ze$/, 'ha'], [/ě$/, 'a'], [/ni$/, 'eň'], [/i$/, 'e'], [/u$/, ''], [/ech$/, 'y'], [/ích$/, 'e'], [/ce$/, 'ka']].forEach(function (p) { if (p[0].test(w)) r.push(w.replace(p[0], p[1])); });
+  return r;
+}
+function najdiMesto(nazev) {
+  var tv = tvaryMesta(nazev), i = 0;
+  function dalsi() {
+    if (i >= tv.length) return Promise.resolve(null);
+    var n = tv[i++];
+    return fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=cs&name=' + encodeURIComponent(n)).then(function (r) { return r.json(); })
+      .then(function (j) { return (j.results && j.results[0]) || dalsi(); });
+  }
+  return dalsi();
+}
+function pocasi(t) {
+  var m = t.match(/(?:\bv|\bve|\bna)\s+([a-záčďéěíňóřšťúůýž]+(?:\s+[a-záčďéěíňóřšťúůýž]+)?)\s*$/);
+  var dotaz = m && !/^(zítra|dnes|týdnu|víkend)/.test(m[1]) ? m[1] : mesto;
+  var zitra = /zítra|zitra/.test(t);
+  najdiMesto(dotaz).then(function (g) {
+    if (!g) { rekni('Město ' + dotaz + ' jsem nenašel.'); return; }
+    return fetch('https://api.open-meteo.com/v1/forecast?timezone=Europe%2FPrague&forecast_days=2&latitude=' + g.latitude + '&longitude=' + g.longitude +
+      '&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max').then(function (r) { return r.json(); })
+      .then(function (j) {
+        var d = j.daily, i = zitra ? 1 : 0, v;
+        var max = Math.round(d.temperature_2m_max[i]), min = Math.round(d.temperature_2m_min[i]);
+        if (zitra) v = g.name + ' zítra: ' + (KODY[d.weather_code[1]] || '') + ', od ' + min + ' do ' + max + ' stupňů';
+        else v = g.name + ' teď ' + Math.round(j.current.temperature_2m) + ' stupňů, ' + (KODY[j.current.weather_code] || '') + '. Dnes od ' + min + ' do ' + max;
+        var srz = d.precipitation_probability_max[i]; if (srz >= 30) v += ', pravděpodobnost srážek ' + srz + ' procent';
+        log(v); rekni(v + '.');
+      });
+  }).catch(function () { rekni('Počasí se teď nepodařilo zjistit.'); });
+}
+
+/* ---------- příkazy ---------- */
+function najdiStanici(t) {
+  for (var i = 0; i < STANICE.length; i++) {
+    if (STANICE[i].slova.some(function (w) { return t.indexOf(w) >= 0; })) return STANICE[i].id;
+  }
+  return null;
+}
+function proved(t) {
+  t = bez(t).replace(OSLOVENI, ' ').replace(/\s+/g, ' ').trim();
+  if (!t) return false;
+  var st = najdiStanici(t), x;
+
+  /* hlasitost 0–10 (Pavel 25. 11.): 10 = max, 1 = potichu, 0 = ztlumit */
+  var hl = t.match(/hlasitost\s*(?:na\s+)?(\S+)/);
+  if (hl && cislo(hl[1]) != null && cislo(hl[1]) <= 10) {
+    var st10 = cislo(hl[1]);
+    zrusTicho();
+    nastavHlasitost(st10 / 10);
+    log('Hlasitost ' + st10 + (st10 === 0 ? ' (ztlumeno)' : ''));
+    return true;
+  }
+  /* budík */
+  if (/(zruš|zrus|vypni|nechci)\s+(budík|budik)/.test(t)) { zrusBudik(); rekni('Budík zrušen.'); return true; }
+  if (/(vzbuď|vzbud|budík|budik|probuď|probud)/.test(t)) {
+    x = casZ(t); if (!x) { rekni('V kolik mám budit?'); return true; }
+    nastavBudik(x.h, x.m, st || null);
+    rekni('Budík na ' + x.h + ' ' + (x.m ? dvoj(x.m) : 'hodin') + ', ' + nazevSt(budik.stanice) + '.');
+    return true;
+  }
+  /* usínání */
+  if (/(zruš|zrus)\s+(usínání|usinani|vypnutí|vypnuti|časovač|casovac)/.test(t)) { zrusUsinani(); rekni('Zrušeno.'); return true; }
+  if (/(vypni|vypnout|usínání|usinani|usnu|spát|spat)/.test(t) && (x = minutyZ(t))) { nastavUsinani(x); rekni('Vypnu za ' + x + ' minut.'); return true; }
+  /* chvilkové ticho */
+  if (/(ticho|ztlum|ztiš na|mlč|mlc)/.test(t) && !/(vypni|zastav)/.test(t)) { x = minutyZ(t) || 1; chvilkuTicho(x); return true; }
+  if (/(zruš ticho|zrus ticho|zpátky|zpatky|odtlum)/.test(t)) { zrusTicho(); return true; }
+  /* čas, datum, počasí, co hraje */
+  if (/(kolik je hodin|kolik je|kolik máme hodin|čas)/.test(t) && !/(stupň|počasí|pocasi)/.test(t)) { var n = new Date(); rekni('Je ' + n.getHours() + ' hodin ' + n.getMinutes() + ' minut.'); return true; }
+  if (/(datum|kolikátého|kolikateho|jaký je dnes den|jaký je den|co je dnes|kolikátýho)/.test(t)) { var d = new Date(); rekni('Dnes je ' + DNY[d.getDay()] + ' ' + d.getDate() + '. ' + MESICE[d.getMonth()] + '.'); return true; }
+  if (/(počasí|pocasi|teplota|bude pršet|bude prset|venku)/.test(t)) { pocasi(t); return true; }
+  if (/(nastav|změň|zmen)\s+(město|mesto)\s+(.+)$/.test(t)) { x = t.match(/(město|mesto)\s+(.+)$/)[2]; najdiMesto(x).then(function (g) { if (g) { mesto = g.name; ulozit('mesto', mesto); el('mesto').value = mesto; rekni('Počasí budu hlásit pro ' + mesto + '.'); } else rekni('Město ' + x + ' jsem nenašel.'); }); return true; }
+  if (/(co (to )?hraje|co hraje|kdo (to )?zpívá|kdo zpiva|co je to za písn|jaká je to písn|jak se to jmenuje)/.test(t)) { coHraje(); return true; }
+
+  /* stanice a hlasitost */
+  if (st) { zrusTicho(); pust(st); rekni(nazevSt(st)); return true; }
+  if (/(zesil|zesílit|hlasitěj|hlasitej|nahlas|přidej|pridej)/.test(t)) { zrusTicho(); nastavHlasitost(hlasitost + 0.1); log('Zesíleno na ' + Math.round(hlasitost * 100) + ' %'); return true; }
+  if (/(zesláb|zeslab|ztiš|ztis|potichu|tišeji|tiseji|ubrat|uber|slaběj)/.test(t)) { nastavHlasitost(hlasitost - 0.1); log('Zeslabeno na ' + Math.round(hlasitost * 100) + ' %'); return true; }
+  if (/(vypni|vypnout|stop|zastav|konec)/.test(t)) { vypni(); zrusUsinani(true); return true; }
+  if (/(zapni|zapnout|pusť|pust|hraj|spusť|spust)/.test(t)) { zrusTicho(); pust(posledni || 'radiozurnal'); return true; }
+  return false;
+}
+
+function ztlum(ano) {
+  ztlumeno = ano;
+  audio.volume = ano ? Math.min(hlasitost, 0.05) : hlasitost;   /* při poslouchání skoro potichu – mikrofon neslyší moderátora */
+}
+
+/* ---------- AI (Pavel 25. 11.: AI rozumí všemu, pokec, ignoruje hlas z rádia) ---------- */
+var osloveno = false, slysenoPoOsloveni = '', opakovani = 0;   /* Pavel 25. 11.: když nerozumí, ať to řekne */
+var aiBezi = false, historie = [], pokec = false, pokecPosledni = 0, pokecStanice = null;
+var mluviDo = 0;                       /* do kdy ignorovat mikrofon (rádio samo mluví) */
+var POKEC_TICHO_MS = 90000;           /* pokec skončí po 1,5 min ticha */
+var KRATKA_PAMET_MS = 180000;          /* v běžném režimu si pamatuje 3 min (na „a co zítra?“) */
+
+function hlas10() { return Math.round(hlasitost * 10); }
+function textBudiku() { if (!budik) return ''; var d = new Date(budik.kdy); return d.getHours() + ':' + dvoj(d.getMinutes()) + ' ' + nazevSt(budik.stanice); }
+function pridejHistorii(kdo, text) {
+  if (!text) return;
+  historie.push({ kdo: kdo, text: String(text), cas: Date.now() });
+  if (historie.length > 24) historie = historie.slice(-24);
+}
+function historieProAI() {
+  var od = pokec ? 0 : Date.now() - KRATKA_PAMET_MS;
+  return historie.filter(function (h) { return h.cas >= od; }).map(function (h) { return { kdo: h.kdo, text: h.text }; });
+}
+
+var SLOVY = ['nula', 'jedna', 'dva', 'tři', 'čtyři', 'pět', 'šest', 'sedm', 'osm', 'devět', 'deset'];
+/* Pavel 25. 11.: rychlý povel krátce potvrdit (jako Alexa) – jinak to vypadá, že nereaguje */
+function potvrd(t) { pipni(true); setTimeout(function () { rekni(t); }, 150); }
+/* Jednoznačné krátké povely se provedou hned bez AI (rychlost). Vše ostatní jde do AI. */
+function rychlyPrikaz(t) {
+  t = t.replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim();
+  var m = t.match(/^(?:dej |nastav )?hlasitost (?:na )?(\S+)$/);
+  if (m && cislo(m[1]) != null && cislo(m[1]) <= 10) { zrusTicho(); nastavHlasitost(cislo(m[1]) / 10); potvrd('Hlasitost ' + SLOVY[cislo(m[1])] + '.'); return true; }
+  if (/^(vypni|vypni to|vypni rádio|vypni radio|stop|zastav)$/.test(t)) { vypni(); zrusUsinani(true); potvrd('Vypínám.'); return true; }
+  if (/^(zapni|zapni to|pusť|pusť to|pust|hraj)$/.test(t)) { zrusTicho(); pust(posledni || 'radiozurnal'); potvrd(nazevSt(aktualni) + '.'); return true; }
+  if (/^(zesil|zesil to|hlasitěji|víc)$/.test(t)) { zrusTicho(); nastavHlasitost(hlasitost + 0.1); potvrd('Hlasitost ' + SLOVY[hlas10()] + '.'); return true; }
+  if (/^(zesláb|zeslab|ztiš|ztiš to|zeslab to|zesláb to|tišeji)$/.test(t)) { nastavHlasitost(hlasitost - 0.1); potvrd('Hlasitost ' + SLOVY[hlas10()] + '.'); return true; }
+  m = t.match(/^(?:pusť|pust|zapni|přepni na|prepni na|hraj|dej)\s+(.+)$/);
+  var cil = m ? m[1].replace(/^(rádio|radio|stanici)\s+/, '').trim() : t;
+  if (cil.split(' ').length <= 2) {
+    var st = najdiStanici(cil);
+    if (st && (m || cil.split(' ').length <= 2 && najdiStanici(t) === st && t.split(' ').length <= 2)) { zrusTicho(); pust(st); potvrd(nazevSt(st) + '.'); return true; }
+  }
+  return false;
+}
+
+/* Krátké potvrzení akcí nahlas (když AI nic neřekla) */
+function potvrzeniAkci(akce) {
+  var r = [];
+  akce.forEach(function (a) {
+    var m;
+    a = bez(a);
+    if (/^(co hraje|pocasi)/.test(a)) return;                         /* ty mluví samy */
+    if ((m = a.match(/^pust\s+(\S+)/))) r.push('Pouštím ' + nazevSt(STANICE.filter(function (s) { return s.id === m[1]; })[0] ? m[1] : (najdiStanici(m[1]) || m[1])) + '.');
+    else if (/^zapni/.test(a)) r.push('Pouštím ' + nazevSt(aktualni || posledni) + '.');
+    else if (/^vypni/.test(a)) r.push('Vypínám.');
+    else if (/^(hlasitost|zesil|zeslab)/.test(a)) r.push('Hlasitost ' + SLOVY[hlas10()] + '.');
+    else if ((m = a.match(/^ticho\s*(\d*)/))) r.push('Ztiším na ' + (m[1] || 2) + ' minuty.');
+    else if (/^zrus/.test(a)) r.push('Zrušeno.');
+    else if ((m = a.match(/^usinani\s+(\d+)/))) r.push('Vypnu za ' + m[1] + ' minut.');
+    else if ((m = a.match(/^budik\s+(\d{1,2})[:.](\d{2})/))) r.push('Budík na ' + Number(m[1]) + ' ' + (m[2] === '00' ? 'hodin' : m[2]) + '.');
+    else if (/^mesto/.test(a)) r.push('Město nastaveno.');
+  });
+  return r.join(' ');
+}
+/* Provede jednu akci z AI (pevný slovník – viz Apps Script „Hey radio AI“) */
+function provedAkci(a) {
+  a = bez(a).replace(/[„“"]/g, '').trim();
+  var m, x;
+  if ((m = a.match(/^pust\s+(\S+)/))) { var st = STANICE.filter(function (s) { return s.id === m[1]; })[0] ? m[1] : najdiStanici(m[1]); if (st) { zrusTicho(); pust(st); return true; } return false; }
+  if (/^zapni/.test(a)) { zrusTicho(); pust(posledni || 'radiozurnal'); return true; }
+  if (/^vypni/.test(a)) { vypni(); zrusUsinani(true); return true; }
+  if ((m = a.match(/^hlasitost\s+(\d+)/))) { zrusTicho(); nastavHlasitost(Math.min(10, Number(m[1])) / 10); return true; }
+  if ((m = a.match(/^zesil\s*(\d*)/))) { zrusTicho(); nastavHlasitost(hlasitost + 0.1 * (Number(m[1]) || 1)); return true; }
+  if ((m = a.match(/^zeslab\s*(\d*)/))) { nastavHlasitost(hlasitost - 0.1 * (Number(m[1]) || 1)); return true; }
+  if (/^zrus ticho/.test(a)) { zrusTicho(); return true; }
+  if ((m = a.match(/^ticho\s*(\d*)/))) { chvilkuTicho(Number(m[1]) || 2); return true; }
+  if (/^zrus usinani/.test(a)) { zrusUsinani(); return true; }
+  if ((m = a.match(/^usinani\s+(\d+)/))) { nastavUsinani(Number(m[1])); return true; }
+  if (/^zrus budik/.test(a)) { zrusBudik(); return true; }
+  if ((m = a.match(/^budik\s+(\d{1,2})[:.](\d{2})(?:\s+(\S+))?/))) { nastavBudik(Number(m[1]), Number(m[2]), m[3] ? (najdiStanici(m[3]) || m[3]) : null); return true; }
+  if (/^co hraje/.test(a)) { coHraje(); return true; }
+  if ((m = a.match(/^pocasi\s*(.*)$/))) { x = m[1].replace(/^zitra\s*/, ''); pocasi((/zitra/.test(m[1]) ? 'zítra ' : '') + (x ? 'v ' + x : '')); return true; }
+  if ((m = a.match(/^mesto\s+(.+)$/))) { var nm = m[1]; najdiMesto(nm).then(function (g) { if (g) { mesto = g.name; ulozit('mesto', mesto); el('mesto').value = mesto; } }); return true; }
+  if (/^pokec\s+start/.test(a)) { zacniPokec(); return true; }
+  if (/^pokec\s+konec/.test(a)) { skonciPokec(true); return true; }
+  log('Neznámá akce: ' + a);
+  return false;
+}
+
+/* Pavel 25. 11.: rádio slyšelo samo sebe („pořád nerozumím…“) – co řeklo, si pamatuje a v mikrofonu to ignoruje */
+var recenoNedavno = [];
+function jeMojeOzvena(x) {
+  var slova = bez(x).replace(/[^a-záčďéěíňóřšťúůýž0-9 ]/g, ' ').split(/\s+/).filter(function (w) { return w.length > 2; });
+  if (slova.length < 3) return false;    /* krátké povely nikdy nebrat jako ozvěnu */
+  return recenoNedavno.some(function (r) {
+    if (Date.now() - r.cas > 30000) return false;
+    var jeho = r.text.split(/[^a-záčďéěíňóřšťúůýž0-9]+/);
+    var shoda = slova.filter(function (w) { return jeho.indexOf(w) >= 0; }).length;
+    return shoda / slova.length >= 0.75;
+  });
+}
+/* Mluvení: během řeči a chvíli po ní se mikrofon ignoruje (neslyší sám sebe). */
+var rekniPuvodni = rekni;
+rekni = function (t, potom) {
+  t = String(t || '');
+  mluviDo = Date.now() + 2000 + t.length * 85;
+  if (!window.speechSynthesis || !t) { mluviDo = 0; if (potom) potom(); return; }
+  /* Chrome dlouhé věty uprostřed utne a pak „visí“ – proto po větách */
+  recenoNedavno.push({ text: bez(t), cas: Date.now() }); recenoNedavno = recenoNedavno.filter(function (x) { return Date.now() - x.cas < 60000; });
+  var kusy = t.match(/[^.!?]+[.!?]*/g) || [t];
+  var v = speechSynthesis.getVoices().filter(function (x) { return /^cs/i.test(x.lang); })[0];
+  var moje = ++mluvi, hotovo = false, i = 0;
+  audio.muted = true;
+  var konec = function () {
+    if (hotovo || moje !== mluvi) return; hotovo = true;
+    mluvi = 0; mluviDo = Date.now() + 800;
+    audio.muted = !!ticho || pokec;
+    if (potom) potom();
+  };
+  var dalsi = function () {
+    if (hotovo || moje !== mluvi) return;
+    if (i >= kusy.length) { konec(); return; }
+    var u = new SpeechSynthesisUtterance(kusy[i++].trim()); u.lang = 'cs-CZ'; u.rate = 1.05;
+    if (v) u.voice = v;
+    u.onend = dalsi; u.onerror = dalsi;
+    speechSynthesis.speak(u);
+  };
+  setTimeout(konec, 3000 + t.length * 95);   /* pojistka: když Chrome nepošle konec, stejně se pokračuje */
+  speechSynthesis.cancel();
+  setTimeout(dalsi, 60);
+};
+
+function zeptejSeAI(veta, alternativy) {
+  if (aiBezi) return;
+  aiBezi = true;
+  var bylOsloven = osloveno === 'silne'; osloveno = false;   /* „nerozumím“ jen po jasném oslovení */
+  pridejHistorii('ja', veta);
+  el('kruh').textContent = '🤖'; el('prekryvText').textContent = 'Přemýšlím…'; el('prekryvSlysim').textContent = '„' + veta + '“';
+  el('prekryv').hidden = false; el('prekryv').className = 'prekryv' + (pokec ? ' pokec' : '');
+  var telo = { tajne: RADIO_AI_TAJNE, veta: veta, alternativy: alternativy || [], historie: historieProAI().slice(0, -1),
+    hraje: pokec ? (pokecStanice ? nazevSt(pokecStanice) + ' (pozastaveno kvůli povídání)' : 'nic') : (aktualni ? nazevSt(aktualni) : 'nic'),
+    hlasitost: hlas10(), budik: textBudiku(), mesto: mesto, pisnicky: pisnickyProAI(), rezim: pokec ? 'pokec' : 'prikaz' };
+  var tukani = setInterval(function () { if (aiBezi && Date.now() > mluviDo) tonPremysli(); }, 1400);
+  var hlidac = setTimeout(function () {
+    if (!aiBezi) return;
+    el('prekryvText').textContent = 'Hledám…';
+    rekni(pokec ? 'Moment, zjišťuju to.' : 'Moment, hledám.');            /* bez monitoru: ať je slyšet, že pracuje */
+  }, pokec ? 8000 : 4000);
+  var zrus = window.AbortController ? new AbortController() : null;
+  var limit = setTimeout(function () { if (zrus) zrus.abort(); }, 30000);   /* AI neodpoví do 30 s → nečekat donekonečna */
+  fetch(RADIO_AI_URL, { method: 'POST', body: JSON.stringify(telo), signal: zrus ? zrus.signal : undefined })
+    .then(function (r) { clearTimeout(limit); return r; })
+    .then(function (r) { return r.json(); })
+    .then(function (o) {
+      aiBezi = false; clearTimeout(hlidac); clearInterval(tukani);
+      if (!o || !o.ok) { log('AI: ' + ((o && o.chyba) || 'chyba')); zaloha(veta); return; }
+      if (o.nic && !(o.akce || []).length && !o.rekni) {
+        historie.pop();                                 /* nebylo to pro rádio – zapomenout */
+        if (pokec) { log('Nerozuměl jsem: ' + veta); pokecPosledni = Date.now(); rekni('Promiň, tomu jsem nerozuměl. Můžeš to říct jinak?', ukazPokec); return; }
+        if (bylOsloven) { log('Nerozuměl jsem: ' + veta); nerozumim(); return; }
+        log('Ignoruji (nebylo pro rádio): ' + veta);
+        zavriNaslouchani(null);
+        return;
+      }
+      var akce = o.akce || [], koncimPokec = akce.some(function (a) { return /pokec\s+konec/.test(a); });
+      var neumim = 0;
+      akce.filter(function (a) { return !/pokec\s+konec/.test(a); }).forEach(function (a) { log('AI → ' + a); if (!provedAkci(a)) neumim++; });
+      if (neumim && !o.rekni) o.rekni = 'Tohle zatím neumím.';
+      if (!o.rekni && !pokec) o.rekni = potvrzeniAkci(akce);   /* bez monitoru vždy říct, co udělal */
+      opakovani = 0;
+      if (o.rekni) { pridejHistorii('ai', o.rekni); log('🤖 ' + o.rekni); }
+      var otazka = /\?\s*$/.test(o.rekni || '');
+      if (pokec) {
+        pokecPosledni = Date.now();
+        if (o.rekni) { el('kruh').textContent = '💬'; el('prekryvText').textContent = o.rekni; el('prekryvSlysim').textContent = ''; }
+        rekni(o.rekni || 'Dobře.', function () { if (koncimPokec) skonciPokec(true); else { pokecPosledni = Date.now(); ukazPokec(); } });
+        return;
+      }
+      zavriNaslouchani('ok', o.rekni || akce.join(', '));
+      /* jako Alexa: po odpovědi ještě chvíli poslouchá bez oslovení (doplňující otázka) */
+      if (o.rekni) rekni(o.rekni, function () { navazujiciPoslech(otazka ? 'Poslouchám odpověď…' : 'Ještě něco?'); });
+    })
+    .catch(function (e) { aiBezi = false; clearTimeout(hlidac); clearInterval(tukani); log('AI nedostupná: ' + e.message); zaloha(veta); });
+}
+var NAVAZUJICI_MS = 6000;
+function navazujiciPoslech(text) {
+  if (pokec) return;
+  cekaNaPrikaz = Date.now() - (CEKAT_MS - NAVAZUJICI_MS); ztlum(true);
+  osloveno = false; slysenoPoOsloveni = '';
+  ukazNaslouchani(); el('prekryvText').textContent = text;
+  stav(text, 'ceka');
+}
+/* Řekne „nerozuměl jsem“ a znovu poslouchá (nejvýš jednou za sebou, ať se to necyklí). */
+function nerozumim(text) {
+  tonChyba();
+  if (opakovani >= 1) { opakovani = 0; zavriNaslouchani('chyba', 'nerozuměl jsem'); rekni('Pořád nerozumím. Zkuste to prosím jinými slovy.'); return; }
+  opakovani++;
+  zavriNaslouchani('chyba', 'nerozuměl jsem');
+  rekni(text || 'Promiňte, nerozuměl jsem. Můžete to zopakovat?', function () {
+    osloveno = 'slabe'; slysenoPoOsloveni = '';   /* po „zopakujte“ už znovu „nerozumím“ neříká – mohl to být moderátor */
+    cekaNaPrikaz = Date.now(); ztlum(true); ukazNaslouchani();
+    el('prekryvText').textContent = 'Zopakujte to prosím…'; stav('Zopakujte to prosím…', 'ceka');
+  });
+}
+/* Když AI nejde, zkusí se původní jednoduchá pravidla. */
+function zaloha(veta) {
+  if (proved(veta)) { zavriNaslouchani('ok', veta); return; }
+  if (pokec) { rekni('Teď se mi nedaří spojit s umělou inteligencí.'); ukazPokec(); return; }
+  zavriNaslouchani('chyba', 'AI teď neodpovídá');
+  rekni('Promiňte, teď se nemůžu spojit s umělou inteligencí. Jednoduché povely jako pusť Blaník nebo hlasitost pět ale fungují.');
+}
+
+/* ---------- POKEC ---------- */
+function zacniPokec() {
+  if (pokec) return;
+  pokec = true; pokecPosledni = Date.now();
+  pokecStanice = aktualni;
+  if (aktualni) { audio.pause(); }            /* rádio úplně stojí → mikrofon neslyší moderátory */
+  cekaNaPrikaz = 0; ztlumeno = false;
+  log('💬 Pokec začal');
+  document.title = '💬 POKEC – Hey rádio';
+  ukazPokec();
+}
+function skonciPokec(pustitRadio) {
+  if (!pokec) return;
+  pokec = false; historie = [];
+  log('💬 Pokec skončil');
+  el('prekryv').hidden = true; document.title = '📻 Hey rádio';
+  if (pustitRadio && pokecStanice) { audio.muted = !!ticho; pust(pokecStanice); }
+  pokecStanice = null;
+  stav('Poslouchám – řekněte „Hey rádio“…', 'posloucha');
+}
+function ukazPokec() {
+  if (!pokec) return;
+  var p = el('prekryv'); p.hidden = false; p.className = 'prekryv pokec';
+  if (!aiBezi && el('kruh').textContent !== '💬') { el('kruh').textContent = '💬'; el('prekryvText').textContent = 'Povídáme si – mluvte'; }
+  el('prekryvSlysim').textContent = 'Konec: řekněte „konec“ nebo „díky, to je vše“';
+  stav('💬 Pokec – mluvte bez oslovení. Konec: „konec“.', 'ceka');
+}
+setInterval(function () {
+  if (pokec && !aiBezi && Date.now() > mluviDo && Date.now() - pokecPosledni > POKEC_TICHO_MS) { rekni('Tak zase někdy.'); skonciPokec(true); }
+  if (pokec) el('odpocet').style.width = Math.max(0, 100 - (Date.now() - pokecPosledni) / POKEC_TICHO_MS * 100) + '%';
+}, 1000);
+
+/* ---------- viditelné naslouchání (Pavel 25. 11.) ---------- */
+var odpocetT = null, zavritT = null;
+function ukazNaslouchani() {
+  clearTimeout(zavritT);
+  var p = el('prekryv'); p.className = 'prekryv'; p.hidden = false;
+  el('kruh').textContent = '🎙'; el('prekryvText').textContent = 'Poslouchám… řekněte, co chcete'; el('prekryvSlysim').textContent = '';
+  document.title = '🔴 POSLOUCHÁM – Hey rádio';
+  clearInterval(odpocetT);
+  odpocetT = setInterval(function () {
+    var z = cekaNaPrikaz ? Math.max(0, 1 - (Date.now() - cekaNaPrikaz) / CEKAT_MS) : 0;
+    el('odpocet').style.width = (z * 100) + '%';
+  }, 100);
+}
+function zavriNaslouchani(vysledek, text) {
+  clearInterval(odpocetT);
+  if (pokec) { ukazPokec(); return; }
+  document.title = '📻 Hey rádio';
+  var p = el('prekryv');
+  if (!vysledek) { p.hidden = true; return; }
+  p.className = 'prekryv ' + (vysledek === 'ok' ? 'hotovo' : 'chyba');
+  el('kruh').textContent = vysledek === 'ok' ? '✓' : '✗';
+  el('prekryvText').textContent = vysledek === 'ok' ? 'Rozumím' : 'Nerozuměl jsem';
+  el('prekryvSlysim').textContent = text ? '„' + text + '“' : '';
+  el('odpocet').style.width = '0';
+  clearTimeout(zavritT);
+  zavritT = setTimeout(function () { if (!pokec) p.hidden = true; }, vysledek === 'ok' ? Math.min(9000, Math.max(1500, String(text || '').length * 70)) : 2200);
+}
+
+/* ---------- oslovení + filtr hlasu z rádia ---------- */
+/* Pavel 25. 11.: „rádio“ / věta začínající zapni, přepni, pusť…  – ale ne znělky stanic („Rádio Blaník“, „rádio Impuls“…). */
+var PRIKAZ_ZACATEK = /^(hlasitost|zapni|přepni|prepni|pusť|pust|vypni|zesil|zesláb|zeslab|ztiš|ztis)(?=[\s,.!?]|$)/;
+var ZNELKA = /(rádi[oau]|radi[oau])\s+(blaník|blanik|impuls|impulz|kiss|rock|čas|cas|zlín|beat|bonton|jih|černá hora|hey|krokodýl|český rozhlas|evropa|country|city|praha|petrov|bohemia|z\b|dechovka|hits)|(posloucháte|vaše rádio|na vlnách)/;
+/* Pavel 25. 11.: Chrome posílá řeč v delších kusech (i s tím, co mluví moderátor před vámi),
+   takže oslovení se hledá KDEKOLI ve větě a bere se jen to, co následuje po něm. */
+var WAKE_G = /(^|\s)(?:(?:hey|hej|hei|haj|ahoj|hele)\s*,?\s*)?(rádi[oaue]?|radi[oaue]?|rádijo|radijo|rádiem|radiem|rádjo|radjo|rádyo)(?=[\s,.!?]|$)/g;
+var POVEL_G = /(^|\s)(hlasitost|zapni|přepni|prepni|pusť|pust|vypni|zesil|zesláb|zeslab|ztiš|ztis)(?=[\s,.!?]|$)/g;
+function ocas_(x) {
+  /* vrátí {po: text po posledním oslovení, oslovenim: true/false} nebo null */
+  var m, posl = null;
+  WAKE_G.lastIndex = 0;
+  while ((m = WAKE_G.exec(x))) posl = { idx: m.index + m[0].length, zac: m.index + m[1].length };
+  if (posl) {
+    var po = x.slice(posl.idx).replace(/^[\s,.!?]+/, '').trim();
+    var cely = x.slice(posl.zac);
+    var predSlovo = (x.slice(0, posl.zac).trim().split(/\s+/).pop() || '');
+    if (/^(zapnout|zapněte|pusťte|poslouchat|posloucháte|ladit|nalaďte|v|ve|na|do|z|ze|od|naše|naši|vaše|vaši|své|svoje|tohle|to|toto|jako|celé|celý|oblíbené|oblíbený|veřejnoprávní|soukromé|hudební|regionální)$/.test(predSlovo)) return null;   /* „zapnout rádio“, „v rádiu“ = mluví o rádiu, neoslovuje */
+    if (/^(a|i|nebo|je|jsou|bylo|bude|hraje|hrálo|vysílá|má|mají|které|který|co)\b/.test(po)) return null;   /* „rádio a poslouchat…“, „rádio je…“ */
+    var predText = x.slice(0, posl.zac).trim();
+    var predSlova = predText ? predText.split(/\s+/) : [];
+    /* Pavel 25. 11.: „country rádio“, „pusť rock rádio“ – stanice/povel PŘED slovem rádio (název stanice obsahuje „rádio“) */
+    if (!po && predSlova.length && predSlova.length <= 4 && (najdiStanici(predText) || /(^|\s)(pusť|pust|zapni|přepni|prepni|dej|hraj|vypni|ztiš|ztis|ztlum|zesil|zesláb|zeslab|hlasitost)(\s|$)/.test(predText))) {
+      return { po: predText.replace(/^(hey|hej)?\s*(rádi[oaue]?|radi[oaue]?)[\s,.!?]+/, '').trim(), oslovenim: true };
+    }
+    /* „rádio Kiss“, „rádio Blaník“ – krátce = povel přepnout; dlouhé pokračování = znělka stanice */
+    if (ZNELKA.test(cely)) {
+      var st0 = najdiStanici(po);
+      if (st0 && po.split(/\s+/).length <= 2) return { po: 'pusť ' + po, oslovenim: true };
+      return null;
+    }
+    if (po.split(/\s+/).filter(Boolean).length > 14) return null;  /* dlouhé povídání po „rádio“ = moderátor */
+    return { po: po, oslovenim: true };
+  }
+  if (citlivost !== 'vysoka') return null;
+  /* bez „rádio“: povel (zapni, pusť…) na začátku úseku, krátký */
+  POVEL_G.lastIndex = 0; posl = null;
+  while ((m = POVEL_G.exec(x))) posl = m.index + m[1].length;
+  if (posl === null) return null;
+  var zbytek = x.slice(posl).trim();
+  var pred = x.slice(0, posl).trim().split(/\s+/).filter(Boolean).length;
+  if (pred > 1 && x.split(/\s+/).length > 10) return null;     /* povel uprostřed dlouhé věty = spíš rádio */
+  if (zbytek.split(/\s+/).length > 8) return null;
+  return { po: zbytek, oslovenim: false };
+}
+/* „silné“ oslovení = krátká věta, která slovem rádio (nebo povelem) ZAČÍNÁ – tak mluví Pavel, ne moderátor */
+function silneOsloveni_(x) {
+  x = bez(x).replace(/[,.!?]/g, ' ').replace(/\s+/g, ' ').trim();
+  var slov = x.split(' ').length;
+  if (OSLOVENI.test(x) && slov <= 10) return true;
+  if (slov > 8) return false;
+  return /^((hej|hey|tak|no|ahoj)\s+)?(rádi[oaue]?|radi[oaue]?)(\s|$)/.test(x) || PRIKAZ_ZACATEK.test(x) || /\s(rádi[oaue]?|radi[oaue]?)$/.test(x) && slov <= 4;
+}
+function maOsloveni_(x) {
+  if (OSLOVENI.test(x)) return true;
+  var o = ocas_(x);
+  if (!o) return false;
+  return o.oslovenim ? true : citlivost === 'vysoka';
+}
+function ocisti(x) {
+  var o = ocas_(x);
+  if (o) return o.po;
+  return x.replace(OSLOVENI, ' ').replace(OSLOVENI_CITLIVE, ' ').replace(/\s+/g, ' ').replace(/^[\s,.!?]+/, '').trim();
+}
+
+/* Ukazatel síly zvuku z mikrofonu – je vidět, že mikrofon opravdu slyší. */
+function startMeric() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: true } }).then(function (s) {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var an = ctx.createAnalyser(); an.fftSize = 512;
+    ctx.createMediaStreamSource(s).connect(an);
+    var buf = new Uint8Array(an.fftSize);
+    (function krok() {
+      an.getByteTimeDomainData(buf);
+      var max = 0; for (var i = 0; i < buf.length; i++) { var v = Math.abs(buf[i] - 128); if (v > max) max = v; }
+      if (max > 10) posledniZvuk = Date.now();   /* pro hlídač: mikrofon slyší zvuk */
+      el('micLevel').style.width = Math.min(100, Math.round(max / 128 * 100 * 2.2)) + '%';
+      requestAnimationFrame(krok);
+    })();
+  }).catch(function () {});
+}
+
+/* ---------- rozpoznávání řeči ---------- */
+function startRec() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { stav('Tento prohlížeč neumí rozpoznávat řeč. Otevřete stránku v Google Chrome.', 'chyba'); return; }
+  rec = new SR();
+  rec.lang = 'cs-CZ'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 5;
+  rec.onstart = function () { recAktivni = true; posledniZivot = Date.now(); if (!pokec && !cekaNaPrikaz) stav('Poslouchám – řekněte „rádio“…', 'posloucha'); };
+  rec.onresult = function (e) {
+    posledniZivot = Date.now();
+    for (var i = e.resultIndex; i < e.results.length; i++) {
+      var r = e.results[i], texty = [];
+      for (var a = 0; a < r.length; a++) texty.push(bez(r[a].transcript).trim());
+      if (Date.now() >= mluviDo && texty[0] && jeMojeOzvena(texty[0])) { if (r.isFinal) log('(ozvěna – ignoruji): ' + texty[0]); continue; }
+      if (Date.now() < mluviDo) {
+        /* jako Alexa: „stop“ / „dost“ přeruší, co rádio říká */
+        if (r.isFinal && /^(\S+\s+)?(stop|dost|přestaň|prestan|stačí|staci|ticho)$/.test(texty[0].replace(/[.,!?]/g, '').trim())) {
+          speechSynthesis.cancel(); mluvi = 0; mluviDo = Date.now() + 600; audio.muted = !!ticho || pokec; pipni(false);
+          log('Přerušeno');
+          if (!pokec) { cekaNaPrikaz = 0; ztlum(false); zavriNaslouchani(null); }
+        }
+        continue;   /* jinak to mluví rádio samo – ignorovat */
+      }
+      el('zive').textContent = 'slyším: ' + texty[0];
+
+      /* POKEC: bez oslovení, každá celá věta jde do AI */
+      if (pokec) {
+        pokecPosledni = Date.now();
+        if (!aiBezi) el('prekryvSlysim').textContent = texty[0];
+        if (!r.isFinal || !texty[0] || aiBezi) continue;
+        log('Pokec: ' + texty[0]);
+        if (/^(konec|konec pokecu|stačí|stop|ukončit|díky to je vše|děkuju to je vše|to je vše)$/.test(texty[0].replace(/[.,!?]/g, '').trim())) { rekni('Dobře, pouštím zase rádio.'); skonciPokec(true); continue; }
+        zeptejSeAI(ocisti(texty[0]) || texty[0], texty.slice(1));
+        continue;
+      }
+
+      var osl = texty.some(maOsloveni_);
+      if (osl && !cekaNaPrikaz && !aiBezi) {
+        cekaNaPrikaz = Date.now(); ztlum(true); pipni(true);
+        osloveno = texty.some(silneOsloveni_) ? 'silne' : 'slabe'; slysenoPoOsloveni = ''; opakovani = 0;
+        stav('Ano? Řekněte, co chcete…', 'ceka');
+        ukazNaslouchani();
+      }
+      if (cekaNaPrikaz) { el('prekryvSlysim').textContent = texty[0]; if (ocisti(texty[0]).length > 1) slysenoPoOsloveni = texty[0]; }
+      if (!r.isFinal) continue;
+      log('Slyším: ' + texty[0]);
+      if (!cekaNaPrikaz || Date.now() - cekaNaPrikaz > CEKAT_MS || aiBezi) continue;
+      var veta = ocisti(texty[0]);
+      if (veta.length < 2) {                                                   /* jen „rádio“ – řekne „Ano?“ a čeká na povel */
+        cekaNaPrikaz = Date.now() + 30000;
+        rekni('Ano?', function () { cekaNaPrikaz = Date.now(); el('prekryvText').textContent = 'Poslouchám… řekněte, co chcete'; });
+        continue;
+      }
+      cekaNaPrikaz = 0; ztlum(false); stav('Poslouchám – řekněte „Hey rádio“…', 'posloucha');
+      if (rychlyPrikaz(veta)) { pridejHistorii('ja', veta); osloveno = false; opakovani = 0; zavriNaslouchani('ok', veta); continue; }
+      ton([[880, 0.08]], 0.08);                                                /* „mám to, zpracovávám“ – krátké ťuk */
+      zeptejSeAI(veta, texty.slice(1).map(ocisti));
+    }
+  };
+  rec.onerror = function (e) {
+    if ((e.error === 'network' || e.error === 'audio-capture') && Date.now() - (window.__chybaRekl || 0) > 120000) {
+      window.__chybaRekl = Date.now(); tonChyba();
+      rekni(e.error === 'network' ? 'Pozor, nemám spojení s internetem, nerozumím vám.' : 'Pozor, nefunguje mikrofon.');
+    }
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { bezi = false; tonChyba(); rekni('Nemám povolený mikrofon.'); stav('Mikrofon není povolený. Povolte ho v Chrome (ikona vlevo v adresním řádku) a klikněte znovu na Spustit.', 'chyba'); el('start').hidden = false; }
+    else if (e.error !== 'no-speech' && e.error !== 'aborted') log('Rozpoznávání: ' + e.error);
+  };
+  rec.onend = function () { recAktivni = false; if (bezi) setTimeout(spustRec, 200); };
+  bezi = true;
+  try { rec.start(); } catch (x) {}
+  startMeric();
+  el('start').hidden = true;
+}
+
+/* Hlídač mikrofonu (Pavel 25. 11.: „slovem rádio ho už neprobudím“):
+   Chrome rozpoznávání občas tiše vypne nebo zamrzne – tady se znovu nahodí. */
+var recAktivni = false, posledniZivot = Date.now(), posledniZvuk = 0, zvukOd = 0;
+function spustRec() { if (!bezi || !rec) return; try { rec.start(); } catch (x) {} }
+setInterval(function () {
+  if (!bezi || !rec) return;
+  if (!recAktivni) { spustRec(); return; }
+  /* 40 s bez jediného slova (ani z rádia) → rozpoznávání nejspíš zamrzlo, restart */
+  /* Chrome zamrzne: mikrofon slyší zvuk, ale 8 s nic nerozpozná → hned obnovit. V tichu nechat být (max. jednou za 2 min). */
+  var slysiZvuk = Date.now() - posledniZvuk < 1500;
+  if (slysiZvuk && !zvukOd) zvukOd = Date.now();
+  if (!slysiZvuk) zvukOd = 0;
+  var zamrzlo = slysiZvuk && zvukOd && Date.now() - zvukOd > 8000 && Date.now() - posledniZivot > 8000;
+  var dlouhoTicho = Date.now() - posledniZivot > 120000;
+  if ((zamrzlo || dlouhoTicho) && !aiBezi && !posloucha && Date.now() > mluviDo) {
+    posledniZivot = Date.now(); zvukOd = 0;
+    if (zamrzlo) log('Mikrofon zamrzl – obnovuji…');
+    try { rec.abort(); } catch (x) {}
+  }
+  /* pojistky proti zaseknutí */
+  if (mluviDo && Date.now() > mluviDo + 60000) mluviDo = 0;
+}, 1000);
+
+/* Po oslovení bez příkazu se po 8 s vrátí normální hlasitost. */
+setInterval(function () {
+  if (cekaNaPrikaz && Date.now() - cekaNaPrikaz > CEKAT_MS && !aiBezi && Date.now() > mluviDo) {
+    cekaNaPrikaz = 0; ztlum(false); stav('Poslouchám – řekněte „Hey rádio“…', 'posloucha');
+    if (osloveno === 'silne' && slysenoPoOsloveni && !jeMojeOzvena(slysenoPoOsloveni)) { osloveno = false; nerozumim('Promiňte, nerozuměl jsem. Zkuste to znovu.'); return; }
+    if (osloveno === 'silne' && opakovani === 0) { osloveno = false; pipni(false); zavriNaslouchani('chyba', 'nic jsem neslyšel'); rekni('Nic jsem neslyšel.'); return; }
+    osloveno = false; pipni(false); zavriNaslouchani(null);
+  }
+}, 500);
+
+citlivost = nacist('citlivost', 'vysoka');
+el('citlivost').value = citlivost;
+el('citlivost').onchange = function () { citlivost = this.value; ulozit('citlivost', citlivost); };
+el('start').onclick = function () { pipni(true); startRec(); setTimeout(function () { rekni('Rádio poslouchá. Oslovte mě slovem rádio.'); }, 400); };
+el('tlStop').onclick = function () { vypni(); };
+el('tlHlasiteji').onclick = function () { nastavHlasitost(hlasitost + 0.1); };
+el('tlTiseji').onclick = function () { nastavHlasitost(hlasitost - 0.1); };
+el('hlasitost').oninput = function () { nastavHlasitost(this.value / 100); };
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = function () {};
+el('mesto').value = mesto;
+el('mesto').onchange = function () { var v = this.value.trim(); if (v) { mesto = v; ulozit('mesto', v); } };
+vykresliTl();
+stavCasovacu();
+vykresliPisnicky();
+if (budik) drzVzhuru(true);
+</script>
+</body>
+</html>
