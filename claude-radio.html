@@ -559,6 +559,13 @@ function historieProAI() {
   return historie.filter(function (h) { return h.cas >= od; }).map(function (h) { return { kdo: h.kdo, text: h.text }; });
 }
 
+/* Pavel 25. 11.: hlas AI byl hlasitější než hudba – hlas se řídí hlasitostí rádia (+ ruční doladění „mluv tišeji / hlasitěji“) */
+var hlasPosun = nacist('hlasPosun', 0);   /* −0.4 … +0.4 */
+function hlasitostHlasu() {
+  var zaklad = 0.15 + hlasitost * 0.75;           /* rádio 1 → 0.23, rádio 5 → 0.53, rádio 10 → 0.9 */
+  return Math.max(0.12, Math.min(1, zaklad + hlasPosun));
+}
+function posunHlasu(o) { hlasPosun = Math.max(-0.4, Math.min(0.4, Math.round((hlasPosun + o) * 100) / 100)); ulozit('hlasPosun', hlasPosun); }
 var SLOVY = ['nula', 'jedna', 'dva', 'tři', 'čtyři', 'pět', 'šest', 'sedm', 'osm', 'devět', 'deset'];
 /* Pavel 25. 11.: rychlý povel krátce potvrdit (jako Alexa) – jinak to vypadá, že nereaguje */
 function potvrd(t) { pipni(true); setTimeout(function () { rekni(t); }, 150); }
@@ -569,6 +576,8 @@ function rychlyPrikaz(t) {
   if (m && cislo(m[1]) != null && cislo(m[1]) <= 10) { zrusTicho(); nastavHlasitost(cislo(m[1]) / 10); potvrd('Hlasitost ' + SLOVY[cislo(m[1])] + '.'); return true; }
   if (/^(vypni|vypni to|vypni rádio|vypni radio|stop|zastav)$/.test(t)) { vypni(); zrusUsinani(true); potvrd('Vypínám.'); return true; }
   if (/^(zapni|zapni to|pusť|pusť to|pust|hraj)$/.test(t)) { zrusTicho(); pust(posledni || 'radiozurnal'); potvrd(nazevSt(aktualni) + '.'); return true; }
+  if (/^(mluv|mluvte|mluvíš|mluvíte)\s+(tišeji|tiseji|potichu|míň nahlas|slaběji)|^(ztiš|ztlum)\s+(hlas|se)$/.test(t)) { posunHlasu(-0.12); potvrd('Dobře, budu mluvit tišeji.'); return true; }
+  if (/^(mluv|mluvte|mluvíš|mluvíte)\s+(hlasitěji|hlasiteji|nahlas|víc nahlas|silněji)|^(zesil)\s+(hlas|se)$/.test(t)) { posunHlasu(0.12); potvrd('Dobře, budu mluvit hlasitěji.'); return true; }
   if (/^(zesil|zesil to|hlasitěji|víc)$/.test(t)) { zrusTicho(); nastavHlasitost(hlasitost + 0.1); potvrd('Hlasitost ' + SLOVY[hlas10()] + '.'); return true; }
   if (/^(zesláb|zeslab|ztiš|ztiš to|zeslab to|zesláb to|tišeji)$/.test(t)) { nastavHlasitost(hlasitost - 0.1); potvrd('Hlasitost ' + SLOVY[hlas10()] + '.'); return true; }
   m = t.match(/^(?:pusť|pust|zapni|přepni na|prepni na|hraj|dej)\s+(.+)$/);
@@ -596,6 +605,8 @@ function potvrzeniAkci(akce) {
     else if ((m = a.match(/^usinani\s+(\d+)/))) r.push('Vypnu za ' + m[1] + ' minut.');
     else if ((m = a.match(/^budik\s+(\d{1,2})[:.](\d{2})/))) r.push('Budík na ' + Number(m[1]) + ' ' + (m[2] === '00' ? 'hodin' : m[2]) + '.');
     else if (/^mesto/.test(a)) r.push('Město nastaveno.');
+    else if (/^hlas\s+tisi/.test(a)) r.push('Dobře, budu mluvit tišeji.');
+    else if (/^hlas\s+hlasiteji/.test(a)) r.push('Dobře, budu mluvit hlasitěji.');
   });
   return r.join(' ');
 }
@@ -618,6 +629,8 @@ function provedAkci(a) {
   if (/^co hraje/.test(a)) { coHraje(); return true; }
   if ((m = a.match(/^pocasi\s*(.*)$/))) { x = m[1].replace(/^zitra\s*/, ''); pocasi((/zitra/.test(m[1]) ? 'zítra ' : '') + (x ? 'v ' + x : '')); return true; }
   if ((m = a.match(/^mesto\s+(.+)$/))) { var nm = m[1]; najdiMesto(nm).then(function (g) { if (g) { mesto = g.name; ulozit('mesto', mesto); el('mesto').value = mesto; } }); return true; }
+  if (/^hlas\s+tisi/.test(a)) { posunHlasu(-0.12); return true; }
+  if (/^hlas\s+hlasiteji/.test(a)) { posunHlasu(0.12); return true; }
   if (/^pokec\s+start/.test(a)) { zacniPokec(); return true; }
   if (/^pokec\s+konec/.test(a)) { skonciPokec(true); return true; }
   log('Neznámá akce: ' + a);
@@ -664,7 +677,7 @@ rekni = function (t, potom) {
   var dalsi = function () {
     if (hotovo || moje !== mluvi) return;
     if (i >= kusy.length) { konec(); return; }
-    var u = new SpeechSynthesisUtterance(kusy[i++].trim()); u.lang = 'cs-CZ'; u.rate = 1.05;
+    var u = new SpeechSynthesisUtterance(kusy[i++].trim()); u.lang = 'cs-CZ'; u.rate = 1.05; u.volume = hlasitostHlasu();
     if (v) u.voice = v;
     u.onend = dalsi; u.onerror = dalsi;
     speechSynthesis.speak(u);
