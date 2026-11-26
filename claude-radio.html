@@ -109,7 +109,7 @@
     💬 <b>„Čůzo, pojďme pokecat“</b> – rádio se zastaví a můžete si povídat bez oslovování. Konec: <b>„konec“</b> nebo <b>„díky, to je vše“</b> (sám skončí po 1,5 min ticha).<br>
     🎬 <b>„Čůzo, pusť film Pelíšky“</b> – celý film z YouTube (jen když tam celý je), rovnou přes celou obrazovku<br>
     ▶ <b>„Čůzo, pusť Kabát Pohoda“</b> – najde a pustí klip z YouTube · „<b>celá obrazovka</b>“ / „<b>zmenši</b>“ · „<b>další</b>“ (jiná verze) · „<b>stop</b>“ (zpátky na rádio)<br>
-    ⏯ při videu stačí i bez „Čůzo“: „<b>pauza</b>“ / „<b>zastav</b>“, „<b>pokračuj</b>“, „<b>dopředu</b>“ / „<b>dozadu</b>“ (30 s), „<b>dopředu o 5 minut</b>“, „<b>skoč na 40. minutu</b>“, „<b>kolik zbývá</b>“, „<b>stop</b>“<br>
+    ⏯ při videu (vždy s „Čůzo“): „<b>pauza</b>“ / „<b>zastav</b>“, „<b>pokračuj</b>“, „<b>dopředu</b>“ / „<b>dozadu</b>“ (30 s), „<b>dopředu o 5 minut</b>“, „<b>skoč na 40. minutu</b>“, „<b>kolik zbývá</b>“, „<b>stop</b>“<br>
     Hlas moderátorů a reklam z rádia se ignoruje.
   </div>
   <div class="log" id="log"></div>
@@ -922,7 +922,8 @@ function zeptejSeAI(veta, alternativy) {
       }
       zavriNaslouchani('ok', o.rekni || akce.join(', '));
       /* jako Alexa: po odpovědi ještě chvíli poslouchá bez oslovení (doplňující otázka) */
-      if (o.rekni) rekni(o.rekni, function () { navazujiciPoslech(otazka ? 'Poslouchám odpověď…' : 'Ještě něco?'); });
+      /* 26. 11.: bez oslovení jen odpověď na její otázku, další povel vždy s „Čůzo“ */
+      if (o.rekni) rekni(o.rekni, function () { if (otazka) navazujiciPoslech('Poslouchám odpověď…'); });
     })
     .catch(function (e) { aiBezi = false; clearTimeout(hlidac); clearInterval(tukani); log('AI nedostupná: ' + e.message); zaloha(veta); });
 }
@@ -1125,7 +1126,7 @@ function startRec() {
       }
 
       /* Pavel 25. 11.: při filmu/klipu zvuk přehluší oslovení – krátké povely platí i bez „rádio“ */
-      if (yt.aktivni && r.isFinal && !aiBezi) {
+      if (false && yt.aktivni && r.isFinal && !aiBezi) {   /* 26. 11.: vypnuto – Pavel chce i při videu vždy oslovit „Čůzo“ */
         var kratkyVysl = null, kratkyText = '';
         for (var q = 0; q < texty.length && kratkyVysl == null; q++) {
           var kt = ocisti(texty[q]).replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim();
