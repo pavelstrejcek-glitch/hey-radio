@@ -900,8 +900,8 @@ function zeptejSeAI(veta, alternativy) {
       if (!o || !o.ok) { log('AI: ' + ((o && o.chyba) || 'chyba')); zaloha(veta); return; }
       if (o.nic && !(o.akce || []).length && !o.rekni) {
         historie.pop();                                 /* nebylo to pro rádio – zapomenout */
-        if (pokec) { log('Nerozuměl jsem: ' + veta); pokecPosledni = Date.now(); rekni('Promiň, tomu jsem nerozuměl. Můžeš to říct jinak?', ukazPokec); return; }
-        if (bylOsloven) { log('Nerozuměl jsem: ' + veta); nerozumim(); return; }
+        if (pokec) { log('Nerozuměla jsem: ' + veta); pokecPosledni = Date.now(); rekni('Promiň, tomu jsem nerozuměla. Můžeš to říct jinak?', ukazPokec); return; }
+        if (bylOsloven) { log('Nerozuměla jsem: ' + veta); nerozumim(); return; }
         log('Ignoruji (nebylo pro rádio): ' + veta);
         zavriNaslouchani(null);
         return;
@@ -934,13 +934,13 @@ function navazujiciPoslech(text) {
   ukazNaslouchani(); el('prekryvText').textContent = text;
   stav(text, 'ceka');
 }
-/* Řekne „nerozuměl jsem“ a znovu poslouchá (nejvýš jednou za sebou, ať se to necyklí). */
+/* Řekne „nerozuměla jsem“ a znovu poslouchá (nejvýš jednou za sebou, ať se to necyklí). */
 function nerozumim(text) {
   tonChyba();
-  if (opakovani >= 1) { opakovani = 0; zavriNaslouchani('chyba', 'nerozuměl jsem'); rekni('Pořád nerozumím. Zkuste to prosím jinými slovy.'); return; }
+  if (opakovani >= 1) { opakovani = 0; zavriNaslouchani('chyba', 'nerozuměla jsem'); rekni('Pořád nerozumím. Zkuste to prosím jinými slovy.'); return; }
   opakovani++;
-  zavriNaslouchani('chyba', 'nerozuměl jsem');
-  rekni(text || 'Promiňte, nerozuměl jsem. Můžete to zopakovat?', function () {
+  zavriNaslouchani('chyba', 'nerozuměla jsem');
+  rekni(text || 'Promiňte, nerozuměla jsem. Můžete to zopakovat?', function () {
     osloveno = 'slabe'; slysenoPoOsloveni = '';   /* po „zopakujte“ už znovu „nerozumím“ neříká – mohl to být moderátor */
     cekaNaPrikaz = Date.now(); ztlum(true); ukazNaslouchani();
     el('prekryvText').textContent = 'Zopakujte to prosím…'; stav('Zopakujte to prosím…', 'ceka');
@@ -1009,7 +1009,7 @@ function zavriNaslouchani(vysledek, text) {
   if (!vysledek) { p.hidden = true; return; }
   p.className = 'prekryv ' + (vysledek === 'ok' ? 'hotovo' : 'chyba');
   el('kruh').textContent = vysledek === 'ok' ? '✓' : '✗';
-  el('prekryvText').textContent = vysledek === 'ok' ? 'Rozumím' : 'Nerozuměl jsem';
+  el('prekryvText').textContent = vysledek === 'ok' ? 'Rozumím' : 'Nerozuměla jsem';
   el('prekryvSlysim').textContent = text ? '„' + text + '“' : '';
   el('odpocet').style.width = '0';
   clearTimeout(zavritT);
@@ -1230,7 +1230,7 @@ setInterval(function () {
 setInterval(function () {
   if (cekaNaPrikaz && Date.now() - cekaNaPrikaz > CEKAT_MS && !aiBezi && Date.now() > mluviDo) {
     cekaNaPrikaz = 0; ztlum(false); stav('Poslouchám – řekněte „Čůzo“…', 'posloucha');
-    if (osloveno === 'silne' && slysenoPoOsloveni && !jeMojeOzvena(slysenoPoOsloveni)) { osloveno = false; nerozumim('Promiňte, nerozuměl jsem. Zkuste to znovu.'); return; }
+    if (osloveno === 'silne' && slysenoPoOsloveni && !jeMojeOzvena(slysenoPoOsloveni)) { osloveno = false; nerozumim('Promiňte, nerozuměla jsem. Zkuste to znovu.'); return; }
     if (osloveno === 'silne' && opakovani === 0) { osloveno = false; pipni(false); zavriNaslouchani('chyba', 'nic jsem neslyšel'); rekni('Nic jsem neslyšel.'); return; }
     osloveno = false; pipni(false); zavriNaslouchani(null);
   }
@@ -1239,7 +1239,7 @@ setInterval(function () {
 citlivost = nacist('citlivost', 'vysoka');
 el('citlivost').value = citlivost;
 el('citlivost').onchange = function () { citlivost = this.value; ulozit('citlivost', citlivost); };
-el('start').onclick = function () { pipni(true); startRec(); setTimeout(function () { rekni('Rádio poslouchá. Oslovte mě slovem rádio.'); }, 400); };
+el('start').onclick = function () { pipni(true); startRec(); setTimeout(function () { rekni('Čůza poslouchá. Oslovte mě Čůzo.'); }, 400); };
 el('tlStop').onclick = function () { vypni(); };
 el('tlHlasiteji').onclick = function () { nastavHlasitost(hlasitost + 0.1); };
 el('tlTiseji').onclick = function () { nastavHlasitost(hlasitost - 0.1); };
