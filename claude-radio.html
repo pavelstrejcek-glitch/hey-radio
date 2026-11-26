@@ -152,7 +152,9 @@ var RADIO_AI_TAJNE = 'f71c441c50f3cf6c7bbd1abf';
 var audio = new Audio();
 audio.preload = 'none';
 var hlasitost = 0.6;
-audio.volume = hlasitost;
+/* 26. 11. (Pavel): rádio hraje celé tišeji, ať mikrofon přes hudbu slyší „Čůzo“ – hlasitost 10 = 60 % původního maxima */
+var STROP_HLASITOSTI = 0.6;
+audio.volume = hlasitost * STROP_HLASITOSTI;
 var aktualni = null, posledni = null, pokusUrl = 0;
 var rec = null, bezi = false, cekaNaPrikaz = 0, ztlumeno = false;
 
@@ -214,7 +216,7 @@ function vykresliTl() {
 
 function nastavHlasitost(v) {
   hlasitost = Math.max(0, Math.min(1, Math.round(v * 100) / 100));
-  if (!ztlumeno) audio.volume = hlasitost;
+  if (!ztlumeno) audio.volume = hlasitost * STROP_HLASITOSTI;
   el('hlasitost').value = Math.round(hlasitost * 100);
   el('hlasCislo').textContent = 'hlasitost ' + Math.round(hlasitost * 10) + (hlasitost === 0 ? ' (ztlumeno)' : '');
 }
@@ -230,7 +232,7 @@ function pust(id) {
 }
 function hrajUrl(s) {
   audio.src = s.url[pokusUrl % s.url.length];
-  audio.volume = ztlumeno ? Math.min(hlasitost, 0.05) : hlasitost;
+  audio.volume = ztlumeno ? Math.min(hlasitost, 0.05) : hlasitost * STROP_HLASITOSTI;
   audio.play().catch(function (e) { log('Přehrání se nepovedlo: ' + e.message); });
 }
 audio.addEventListener('error', function () {
@@ -375,7 +377,7 @@ function ytCela(ano) {
 /* hlasitost klipu = hlasitost rádia; když rádio poslouchá nebo mluví, klip skoro ztiší */
 function ytHlas() {
   if (!yt.player || !yt.player.setVolume) return;
-  var v = Math.round(hlasitost * 100);
+  var v = Math.round(hlasitost * STROP_HLASITOSTI * 100);
   if (ztlumeno || mluvi || ticho || pokec || Date.now() < mluviDo - 500) v = Math.min(v, 5);
   try { if (yt.posledniHlas !== v) { yt.player.setVolume(v); yt.posledniHlas = v; } } catch (x) {}
 }
@@ -420,7 +422,7 @@ function nastavUsinani(min) {
   var konec = Date.now() + min * 60000;
   usinani = { konec: konec, t: setInterval(function () {
     var zbyva = konec - Date.now();
-    if (zbyva <= 30000 && zbyva > 0 && !ztlumeno) audio.volume = hlasitost * zbyva / 30000;
+    if (zbyva <= 30000 && zbyva > 0 && !ztlumeno) audio.volume = hlasitost * STROP_HLASITOSTI * zbyva / 30000;
     if (zbyva <= 0) { zrusUsinani(true); vypni(); nastavHlasitost(hlasitost); log('Usínání: vypnuto'); }
     stavCasovacu();
   }, 1000) };
@@ -543,7 +545,7 @@ function poznejPoslechem(s) {
   var DELKA = 10;
   /* rádio musí být slyšet: zrušit ztlumení, případně trochu přidat */
   var puvodni = hlasitost; zrusTicho(); ztlum(false); audio.muted = false;
-  if (hlasitost < 0.35) { audio.volume = 0.35; }
+  if (hlasitost < 0.35) { audio.volume = 0.35 * STROP_HLASITOSTI; }
   mluviDo = Date.now() + (DELKA + 2) * 1000;   /* text písničky nebrat jako povely */
   var p = el('prekryv'); p.hidden = false; p.className = 'prekryv pisen';
   el('kruh').textContent = '🎵'; el('prekryvSlysim').textContent = s.nazev;
@@ -551,7 +553,7 @@ function poznejPoslechem(s) {
   var odp = setInterval(function () { el('odpocet').style.width = Math.max(0, Math.min(100, 100 - (Date.now() - start) / (DELKA * 10))) + '%'; }, 100);
   function hotovo(chyba) {
     clearInterval(odp); posloucha = false;
-    audio.volume = ztlumeno ? Math.min(puvodni, 0.05) : puvodni; nastavHlasitost(puvodni);
+    audio.volume = ztlumeno ? Math.min(puvodni, 0.05) : puvodni * STROP_HLASITOSTI; nastavHlasitost(puvodni);
     if (chyba) { zavriNaslouchani('chyba', chyba); rekni(chyba); }
   }
   /* Pavel 25. 11.: nejdřív řekne, že si to poslechne – nahrávat se začne až po té větě */
@@ -694,7 +696,7 @@ function proved(t) {
 
 function ztlum(ano) {
   ztlumeno = ano;
-  audio.volume = ano ? Math.min(hlasitost, 0.05) : hlasitost;   /* při poslouchání skoro potichu – mikrofon neslyší moderátora */
+  audio.volume = ano ? Math.min(hlasitost, 0.05) : hlasitost * STROP_HLASITOSTI;   /* při poslouchání skoro potichu – mikrofon neslyší moderátora */
 }
 
 /* ---------- AI (Pavel 25. 11.: AI rozumí všemu, pokec, ignoruje hlas z rádia) ---------- */
