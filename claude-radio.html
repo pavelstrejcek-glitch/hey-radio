@@ -1262,8 +1262,9 @@ setInterval(function () {
   /* počítá vteřiny se zvukem od posledního rozpoznaného slova */
   if (Date.now() - posledniZvuk < 1100) zvukSekund++;
   if (Date.now() - posledniZivot < 1500) zvukSekund = 0;
-  var zamrzlo = zvukSekund >= 8 && Date.now() - posledniZivot > 20000;   /* 26. 11.: méně zbrkle (dřív 5 s / 12 s) */
-  var dlouhoTicho = Date.now() - posledniZivot > 120000;
+  /* 27. 11. (Pavel: „vůbec mě nevnímá, volám Čůzo“): krátké volání (pár vteřin zvuku) bez výsledku = zamrzlé → obnovit do ~15 s; v tichu nejdéle po 60 s */
+  var zamrzlo = zvukSekund >= 3 && Date.now() - posledniZivot > 15000;
+  var dlouhoTicho = Date.now() - posledniZivot > 60000;
   if ((zamrzlo || dlouhoTicho) && !aiBezi && !posloucha && Date.now() > mluviDo) {
     if (zamrzlo) obnovRec_('zamrzlo');
     else { posledniZivot = Date.now(); zvukOd = 0; zvukSekund = 0; try { rec.abort(); } catch (x) {} }
