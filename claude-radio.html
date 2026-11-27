@@ -65,6 +65,8 @@
   .yt.cela { position:fixed; inset:0; z-index:40; border-radius:0; margin:0; }
   .yt.cela .ytObal { aspect-ratio:auto; height:100vh; }
   .yt.cela .ytNazev { display:none; }
+  /* 27. 11. (Pavel: v celé obrazovce mikrofon zamrzá): přehrávač zůstane malý (960×540 → nižší kvalita, menší zátěž) a jen se roztáhne */
+  .yt.cela .ytObal iframe, .yt.cela .ytObal > div { inset:auto; left:50%; top:50%; width:960px; height:540px; transform:translate(-50%,-50%) scale(var(--ytSk,1)); transform-origin:center; }
   .log { margin-top:16px; color:var(--sed); font-size:13px; max-height:140px; overflow:auto; }
   .log div { padding:2px 0; }
 </style>
@@ -367,8 +369,10 @@ function ytZavri(zpetNaRadio) {
   if (zpetNaRadio && st) pust(st);
 }
 /* „celá obrazovka“: klip přes celé okno; skutečný režim celé obrazovky Chrome dovolí jen po kliknutí, proto se o něj jen pokusí */
+function ytMeritko() { document.documentElement.style.setProperty('--ytSk', Math.min(window.innerWidth / 960, window.innerHeight / 540).toFixed(3)); }
+window.addEventListener('resize', ytMeritko);
 function ytCela(ano) {
-  yt.cela = !!ano && yt.aktivni; el('yt').classList.toggle('cela', yt.cela);
+  yt.cela = !!ano && yt.aktivni; el('yt').classList.toggle('cela', yt.cela); ytMeritko();
   try {
     if (yt.cela && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {});
     if (!yt.cela && document.fullscreenElement) document.exitFullscreen().catch(function () {});
@@ -1221,7 +1225,7 @@ function obnovRec_(duvod) {
   zamrzleCasy.push(ted);
   posledniZivot = ted; zvukOd = 0; zvukSekund = 0;
   var opakovane = zamrzleCasy.length >= 2 && ted - zamrzleCasy[zamrzleCasy.length - 2] < 3 * 60000;
-  if (opakovane || duvod === 'nestartuje') {
+  if (opakovane || duvod === 'nestartuje' || yt.aktivni) {   /* 27. 11.: při videu rovnou založit znovu – samotný restart se nerozběhl */
     log('Mikrofon ' + (duvod === 'nestartuje' ? 'se nerozběhl' : 'zamrzl znovu') + ' – zakládám rozpoznávání úplně znovu');
     startRec(true);
   } else {
