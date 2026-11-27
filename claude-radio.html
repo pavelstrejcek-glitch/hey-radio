@@ -65,6 +65,8 @@
   .yt.cela { position:fixed; inset:0; z-index:40; border-radius:0; margin:0; }
   .yt.cela .ytObal { aspect-ratio:auto; height:100vh; }
   .yt.cela .ytNazev { display:none; }
+  /* 27. 11. (Pavel): písnička na přání bez videa – přehrávač běží, jen není vidět; zůstane pruh s názvem */
+  .yt.jenZvuk .ytObal { position:fixed; left:0; bottom:0; width:2px; height:2px; aspect-ratio:auto; opacity:0.01; pointer-events:none; overflow:hidden; }
   /* 27. 11. (Pavel: v celé obrazovce mikrofon zamrzá): přehrávač zůstane malý (960×540 → nižší kvalita, menší zátěž) a jen se roztáhne */
   .yt.cela .ytObal iframe, .yt.cela .ytObal > div { inset:auto; left:50%; top:50%; width:960px; height:540px; transform:translate(-50%,-50%) scale(var(--ytSk,1)); transform-origin:center; }
   .log { margin-top:16px; color:var(--sed); font-size:13px; max-height:140px; overflow:auto; }
@@ -267,7 +269,10 @@ function ytApi(hotovo) {
 function zastavStream() { audio.pause(); audio.removeAttribute('src'); audio.load(); }
 function pustYoutube(dotaz, typ) {
   dotaz = String(dotaz || '').trim(); if (!dotaz) return;
-  var film = typ === 'film';   /* Pavel 25. 11.: „pusť film …“ – jen celé filmy, rovnou přes celou obrazovku */
+  var film = typ === 'film';
+  var jenZvuk = !film && (/(bez vide|bez klip|bez obraz|jen zvuk|jenom zvuk|jen hudb|jenom hudb|jen písničk|jen pisnick|jen audio)/.test(bez(dotaz)) || Date.now() - (yt.zvukPozadavek || 0) < 60000);
+  yt.zvukPozadavek = 0;
+  dotaz = dotaz.replace(/\s*(bez videa|bez klipu|bez obrazu|jen zvuk|jenom zvuk|jen hudba|jenom hudba|jen audio)\s*/gi, ' ').trim() || dotaz;   /* Pavel 25. 11.: „pusť film …“ – jen celé filmy, rovnou přes celou obrazovku */
   log('▶ YouTube hledám' + (film ? ' film: ' : ': ') + dotaz);
   ytApi(function () {});                                   /* přehrávač se začne načítat hned, ať je to rychlejší */
   fetch(RADIO_AI_URL, { method: 'POST', body: JSON.stringify({ tajne: RADIO_AI_TAJNE, youtube: dotaz, typ: film ? 'film' : '' }) })
@@ -278,6 +283,7 @@ function pustYoutube(dotaz, typ) {
       if (!yt.aktivni) yt.stanicePred = aktualni || null;
       if (aktualni) { zastavStream(); posledni = aktualni; aktualni = null; vykresliTl(); }
       yt.aktivni = true;
+      ytJenZvuk(jenZvuk);
       ytPustIndex();
       if (film) ytCela(true);
     })
@@ -353,6 +359,8 @@ function ytPovel(t, bezOsloveni) {
   if (/^(vypni|vypni to|vypnout)$/.test(t)) { ytZavri(false); return 'Vypínám.'; }
   if (/^(celá obrazovka|cela obrazovka|na celou obrazovku|přes celou obrazovku|celou obrazovku|zvětši|zvětši to|zvetsi|zvetsi to)$/.test(t)) { ytCela(true); return ''; }
   if (/^(zmenši|zmenši to|zmensi|zmensi to|malá obrazovka|mala obrazovka|malou obrazovku)$/.test(t)) { ytCela(false); return ''; }
+  if (/^(bez videa|schovej video|skryj video|vypni video|jen zvuk|jenom zvuk|jen hudbu)$/.test(t)) { ytJenZvuk(true); return ''; }
+  if (/^(ukaž video|ukaz video|zobraz video|zapni video|s videem|ukaž klip|ukaz klip)$/.test(t)) { ytJenZvuk(false); return ''; }
   if (/^(další|dalsi|jinou|jinou verzi|jiná verze|jina verze)$/.test(t)) { ytDalsi(); return 'Zkusím jinou.'; }
   if (/^(kolik je|kde jsme|jak daleko|kolik zbývá|kolik zbyva)/.test(t) && yt.player && yt.player.getCurrentTime) { var d = yt.player.getDuration(), n = yt.player.getCurrentTime(); return /zbýv|zbyv/.test(t) ? 'Zbývá ' + ytCasText(d - n) + '.' : 'Jsme na ' + ytCasText(n) + ' z ' + ytCasText(d) + '.'; }
   return null;
@@ -363,7 +371,7 @@ function ytZavri(zpetNaRadio) {
   yt.aktivni = false;
   try { if (yt.player && yt.player.stopVideo) yt.player.stopVideo(); } catch (x) {}
   ytCela(false);
-  el('yt').hidden = true; document.title = '📻 Hey rádio';
+  el('yt').hidden = true; document.title = '📻 Hey rádio'; ytJenZvuk(false);
   var st = yt.stanicePred; yt.stanicePred = null;
   vykresliTl();
   if (zpetNaRadio && st) pust(st);
@@ -371,7 +379,9 @@ function ytZavri(zpetNaRadio) {
 /* „celá obrazovka“: klip přes celé okno; skutečný režim celé obrazovky Chrome dovolí jen po kliknutí, proto se o něj jen pokusí */
 function ytMeritko() { document.documentElement.style.setProperty('--ytSk', Math.min(window.innerWidth / 960, window.innerHeight / 540).toFixed(3)); }
 window.addEventListener('resize', ytMeritko);
+function ytJenZvuk(ano) { yt.jenZvuk = !!ano; el('yt').classList.toggle('jenZvuk', yt.jenZvuk); if (ano && yt.cela) ytCela(false); if (ano) log('🎵 Jen zvuk (bez videa)'); }
 function ytCela(ano) {
+  if (ano && yt.jenZvuk) ytJenZvuk(false);
   yt.cela = !!ano && yt.aktivni; el('yt').classList.toggle('cela', yt.cela); ytMeritko();
   try {
     if (yt.cela && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {});
@@ -882,6 +892,7 @@ rekni = function (t, potom, nechMic) {
 
 function zeptejSeAI(veta, alternativy) {
   if (aiBezi) return;
+  if (/(bez vide|bez klip|bez obraz|jen zvuk|jenom zvuk|jen hudb|jenom hudb|jen písničk|jen pisnick|jen audio)/.test(bez(veta))) yt.zvukPozadavek = Date.now();   /* „pusť … bez videa“ → najde se na YouTube, ale jen zvuk */
   aiBezi = true;
   var bylOsloven = osloveno === 'silne'; osloveno = false;   /* „nerozumím“ jen po jasném oslovení */
   pridejHistorii('ja', veta);
